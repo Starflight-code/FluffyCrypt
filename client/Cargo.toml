@@ -1,6 +1,17 @@
 [package]
-name = "client"
+name = "fluffycrypt_client"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+# this is for multiple producer, multiple consumer thread-safe queues. Read more here: https://docs.rs/crossbeam-channel/latest/crossbeam_channel/
+crossbeam-channel = "0.5.13"
+# in case we're still planning on a GUI, here's iced. Read about it here: https://book.iced.rs/
+#iced = "0.13.1"
+openssl = {version = "0.10.68", features = ["vendored"] }
+# this supplies async and thread support, as well as (async variants) of our networking stuff. Read more here: https://tokio.rs/tokio/tutorial
+# and here: https://tokio.rs/tokio/tutorial/io
+tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
+# adds memory zeroing primitizes, using "Rust intrinsics to prevent optimization" (optimization is a common pitfall of memory zeroing)
+# read more here: https://docs.rs/zeroize/latest/zeroize/
+zeroize = "1.8.1"
