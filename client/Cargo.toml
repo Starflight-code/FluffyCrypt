@@ -12,6 +12,11 @@ openssl = {version = "0.10.68", features = ["vendored"] }
 # this supplies async and thread support, as well as (async variants) of our networking stuff. Read more here: https://tokio.rs/tokio/tutorial
 # and here: https://tokio.rs/tokio/tutorial/io
 tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
+tracing = "0.1.40" # tracing/logging facilities, supporting multiple output handlers for async-safe logging. Read more here: https://docs.rs/tracing/latest/tracing/
 # adds memory zeroing primitizes, using "Rust intrinsics to prevent optimization" (optimization is a common pitfall of memory zeroing)
 # read more here: https://docs.rs/zeroize/latest/zeroize/
 zeroize = "1.8.1"
+
+# code coverage: https://github.com/xd009642/tarpaulin
+
+# for bundling the key (hooks into cargo's build pipeline) https://doc.rust-lang.org/std/macro.include_bytes.html
