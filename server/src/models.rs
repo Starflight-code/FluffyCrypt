@@ -21,6 +21,7 @@ pub struct ClientKey {
     pub asymmetric_key_id: i32,
     pub ucid: i64, // unique client identifier
     pub encryption_key: String,
+    pub paid: bool, // whether to authorize transmission of key to decryptor
 }
 
 #[derive(Insertable, AsChangeset)]
@@ -39,4 +40,5 @@ pub struct NewClientKey<'a> {
     pub asymmetric_key_id: i32,
     pub ucid: i64, // unique client identifier
     pub encryption_key: &'a str,
+    pub paid: bool,
 }
