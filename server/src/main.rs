@@ -36,27 +36,35 @@ pub async fn handle_connection(
                 println!("Failed to write client reject response (timeout)");
             }
         }
+        return;
     }
     println!("Connection recieved from: {}", addr);
     loop {
-        if socket.readable().await.is_ok() {
+        let read_ready = socket.readable().await;
+        if read_ready.is_ok() {
             let mut read_buff = vec![0; 1024];
 
             let len = socket.try_read(read_buff.as_mut_slice());
-            if len.is_err() || len.as_ref().is_ok_and(|x| *x == 0) {
+            if len.is_err() {
                 sleep(Duration::from_millis(1));
                 continue;
+            } else if len.as_ref().is_ok_and(|x| *x == 0) {
+                println!("Connection dropped by {}", addr);
+                return;
             }
             let len = len.unwrap();
             read_buff.truncate(len);
 
             dbg!(Message::from_req(&mut read_buff));
+        } else {
+            println!("Connection Error: Disconnecting from {}", addr);
+            return;
         }
     }
 }
 
-pub async fn connect_to_host() {
-    sleep(Duration::from_secs(1));
+pub async fn connect_to_host(delay: i32) {
+    sleep(Duration::from_secs(delay.try_into().unwrap()));
     let to_tx: Vec<Vec<u8>> = vec![
         Message::RateReject().to_req(),
         Message::UcidReject(500).to_req(),
@@ -104,7 +112,13 @@ async fn main() {
         .await
         .expect("Could not bind to port 4200");
     spawn(async move {
-        connect_to_host().await;
+        connect_to_host(1).await;
+    });
+    spawn(async move {
+        connect_to_host(2).await;
+    });
+    spawn(async move {
+        connect_to_host(2).await;
     });
     loop {
         match listener.accept().await {
