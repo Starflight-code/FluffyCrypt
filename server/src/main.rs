@@ -8,10 +8,10 @@ use std::{
 use diesel::{
     dsl::insert_into, Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection,
 };
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey};
 use openssl::{
-    bn::BigNumContext,
-    ec::{self, EcGroup, PointConversionForm},
+    ec::{self, EcGroup},
     nid::Nid,
 };
 use std::net::IpAddr::{V4, V6};
@@ -19,6 +19,8 @@ use tokio::{
     net::{TcpListener, TcpSocket, TcpStream},
     spawn,
 };
+
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 mod comms;
 mod models;
@@ -55,6 +57,7 @@ async fn handle_message(msg: Message<'_>, socket: TcpStream) {
         Message::UcidReject(_) => return,
         Message::RateReject() => return,
         Message::Accepted(_) => return,
+        Message::InvalidReq() => todo!(),
         Message::Malformed() => return,
     }
 }
@@ -166,6 +169,9 @@ async fn main() {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
 
     let mut db = establish_connection().await;
+
+    db.run_pending_migrations(MIGRATIONS)
+        .expect("Error applying Diesel-rs SQLite migrations");
     if (asym_dsl::asymmetric_key.first(&mut db) as Result<AsymmetricKey, _>).is_err() {
         generate_and_write_key(&mut db).await;
     }

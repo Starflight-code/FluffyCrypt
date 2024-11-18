@@ -4,6 +4,7 @@ pub(crate) enum Message<'a> {
     RegisterClient((u64, &'a [u8])),
     UcidReject(u64),
     RateReject(),
+    InvalidReq(),
     Accepted(&'a [u8]),
     Malformed(),
 }
@@ -59,6 +60,9 @@ impl Message<'_> {
                 }
                 return Message::Accepted(&network_msg[1..network_msg.len()]);
             }
+            4 => {
+                return Message::InvalidReq();
+            }
             _ => {
                 return Message::Malformed();
             }
@@ -86,6 +90,10 @@ impl Message<'_> {
             Message::Accepted(signature) => {
                 req.push(3 as u8);
                 req.append(&mut signature.to_vec());
+                return req;
+            }
+            Message::InvalidReq() => {
+                req.push(4 as u8);
                 return req;
             }
             Message::Malformed() => return [].to_vec(),

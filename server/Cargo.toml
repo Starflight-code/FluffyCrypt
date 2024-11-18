@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 diesel = { version = "2.2.4", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
+diesel_migrations = "2.2.0"
 openssl = {version = "0.10.68", features = ["vendored"] }
 tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
 tracing = "0.1.40"
