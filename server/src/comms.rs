@@ -84,7 +84,7 @@ impl Message<'_> {
                 return req;
             }
             Message::Accepted(signature) => {
-                req.push(1 as u8);
+                req.push(3 as u8);
                 req.append(&mut signature.to_vec());
                 return req;
             }
