@@ -12,6 +12,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey};
 use openssl::{
     ec::{self, EcGroup},
+    encrypt,
     nid::Nid,
 };
 use std::net::IpAddr::{V4, V6};
@@ -48,8 +49,20 @@ async fn handle_message(msg: Message<'_>, socket: TcpStream) {
                 if socket.writable().await.is_ok() {
                     let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
                 } else {
-                    // process valid key register here (perhaps add another type of rejection in case of key error, malformed is not REALLY transmittable)
-                    // pre-req, decryption of key
+                    let p_key = openssl::ec::EcKey::private_key_from_pem(b"CHANGE ME").unwrap(); // swap key placeholder with database read
+                    let p_key = openssl::pkey::PKey::from_ec_key(p_key).unwrap();
+                    let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
+
+                    let buffer_len = decryptor.decrypt_len(&key).unwrap();
+                    let mut decoded = vec![0u8; buffer_len];
+
+                    // Decrypt the data and get its length
+                    let decoded_len = decryptor.decrypt(&key, &mut decoded).unwrap();
+
+                    // Use only the part of the buffer with the decrypted data
+                    let decoded = &decoded[..decoded_len];
+
+                    // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
                 }
             }
         }
@@ -57,7 +70,7 @@ async fn handle_message(msg: Message<'_>, socket: TcpStream) {
         Message::UcidReject(_) => return,
         Message::RateReject() => return,
         Message::Accepted(_) => return,
-        Message::InvalidReq() => todo!(),
+        Message::InvalidReq() => return,
         Message::Malformed() => return,
     }
 }
@@ -116,7 +129,7 @@ async fn connect_to_host(delay: i32) {
     for tx in to_tx {
         if stream.writable().await.is_ok() {
             println!("TX: {:?}", tx.as_slice());
-            stream.try_write(tx.as_slice()).unwrap();
+            let _ = stream.try_write(tx.as_slice());
             sleep(Duration::from_millis(1));
         }
     }
