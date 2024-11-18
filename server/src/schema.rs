@@ -3,9 +3,9 @@
 diesel::table! {
     asymmetric_key (id) {
         id -> Integer,
-        public_key -> Text,
-        private_key -> Text,
         algo_metadata -> Text,
+        public_key -> Binary,
+        private_key -> Binary,
     }
 }
 

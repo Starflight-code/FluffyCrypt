@@ -5,7 +5,15 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use diesel::{Connection, SqliteConnection};
+use diesel::{
+    dsl::insert_into, Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection,
+};
+use models::{AsymmetricKey, ClientKey, NewAsymmetricKey};
+use openssl::{
+    bn::BigNumContext,
+    ec::{self, EcGroup, PointConversionForm},
+    nid::Nid,
+};
 use std::net::IpAddr::{V4, V6};
 use tokio::{
     net::{TcpListener, TcpSocket, TcpStream},
@@ -24,7 +32,34 @@ pub async fn establish_connection() -> SqliteConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-pub async fn handle_connection(
+async fn handle_message(msg: Message<'_>, socket: TcpStream) {
+    use crate::schema::client_key::dsl as client_dsl;
+
+    let mut db = establish_connection().await;
+    match msg {
+        Message::RegisterClient((id, key)) => {
+            if (client_dsl::client_key
+                .filter(client_dsl::ucid.eq(id as i64))
+                .first(&mut db) as Result<ClientKey, _>)
+                .is_ok()
+            {
+                if socket.writable().await.is_ok() {
+                    let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
+                } else {
+                    // process valid key register here (perhaps add another type of rejection in case of key error, malformed is not REALLY transmittable)
+                    // pre-req, decryption of key
+                }
+            }
+        }
+
+        Message::UcidReject(_) => return,
+        Message::RateReject() => return,
+        Message::Accepted(_) => return,
+        Message::Malformed() => return,
+    }
+}
+
+async fn handle_connection(
     socket: TcpStream,
     addr: SocketAddr,
     limit_map: &mut HashMap<u128, u64>,
@@ -57,13 +92,13 @@ pub async fn handle_connection(
 
             dbg!(Message::from_req(&mut read_buff));
         } else {
-            println!("Connection Error: Disconnecting from {}", addr);
-            return;
+            sleep(Duration::from_millis(1));
+            continue;
         }
     }
 }
 
-pub async fn connect_to_host(delay: i32) {
+async fn connect_to_host(delay: i32) {
     sleep(Duration::from_secs(delay.try_into().unwrap()));
     let to_tx: Vec<Vec<u8>> = vec![
         Message::RateReject().to_req(),
@@ -84,11 +119,12 @@ pub async fn connect_to_host(delay: i32) {
     }
 }
 
-pub async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>) -> bool {
-    let since_epoch = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH + Duration::from_secs(1704067200))
-        .unwrap()
-        .as_secs();
+async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>) -> bool {
+    let since_epoch =
+        SystemTime::now() // custom epoch starting 2024-1-1 (ISO 8601 format)
+            .duration_since(SystemTime::UNIX_EPOCH + Duration::from_secs(1704067200))
+            .unwrap()
+            .as_secs();
     if let V4(ip) = addr.ip() {
         if let Some(timestamp) = limit_map.insert(ip.to_bits() as u128, since_epoch) {
             if timestamp + 30 > since_epoch {
@@ -105,8 +141,35 @@ pub async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u
     }
     return true;
 }
+
+async fn generate_and_write_key(db: &mut SqliteConnection) {
+    use crate::schema::asymmetric_key::dsl as asym_dsl;
+
+    // generate a key if none are available
+    let curve = Nid::X9_62_PRIME256V1;
+    let group = &EcGroup::from_curve_name(curve).unwrap();
+    let key = ec::EcKey::generate(group).unwrap();
+    let cur_string = curve.as_raw().to_string();
+
+    let record = NewAsymmetricKey {
+        public_key: &key.public_key_to_pem().unwrap(),
+        private_key: &key.private_key_to_pem().unwrap(),
+        algo_metadata: cur_string.as_str(),
+    };
+    insert_into(asym_dsl::asymmetric_key)
+        .values(record)
+        .execute(db)
+        .expect("Key could not be written to the database");
+}
 #[tokio::main]
 async fn main() {
+    use crate::schema::asymmetric_key::dsl as asym_dsl;
+
+    let mut db = establish_connection().await;
+    if (asym_dsl::asymmetric_key.first(&mut db) as Result<AsymmetricKey, _>).is_err() {
+        generate_and_write_key(&mut db).await;
+    }
+
     let mut limit_map: HashMap<u128, u64> = HashMap::new();
     let listener = TcpListener::bind("127.0.0.1:4200")
         .await
