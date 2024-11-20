@@ -12,7 +12,6 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey};
 use openssl::{
     ec::{self, EcGroup},
-    encrypt,
     nid::Nid,
 };
 use std::net::IpAddr::{V4, V6};
@@ -36,6 +35,7 @@ pub async fn establish_connection() -> SqliteConnection {
 }
 
 async fn handle_message(msg: Message<'_>, socket: TcpStream) {
+    use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
 
     let mut db = establish_connection().await;
@@ -47,23 +47,25 @@ async fn handle_message(msg: Message<'_>, socket: TcpStream) {
                 .is_ok()
             {
                 if socket.writable().await.is_ok() {
+                    // key is a duplicate, send rejection
                     let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
-                } else {
-                    let p_key = openssl::ec::EcKey::private_key_from_pem(b"CHANGE ME").unwrap(); // swap key placeholder with database read
-                    let p_key = openssl::pkey::PKey::from_ec_key(p_key).unwrap();
-                    let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
-
-                    let buffer_len = decryptor.decrypt_len(&key).unwrap();
-                    let mut decoded = vec![0u8; buffer_len];
-
-                    // Decrypt the data and get its length
-                    let decoded_len = decryptor.decrypt(&key, &mut decoded).unwrap();
-
-                    // Use only the part of the buffer with the decrypted data
-                    let decoded = &decoded[..decoded_len];
-
-                    // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
                 }
+            } else {
+                // fetch asymmetric key and decrypt message here
+                let p_key = openssl::ec::EcKey::private_key_from_pem(b"CHANGE ME").unwrap(); // swap key placeholder with database read
+                let p_key = openssl::pkey::PKey::from_ec_key(p_key).unwrap();
+                let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
+
+                let buffer_len = decryptor.decrypt_len(&key).unwrap();
+                let mut decoded = vec![0u8; buffer_len];
+
+                // Decrypt the data and get its length
+                let decoded_len = decryptor.decrypt(&key, &mut decoded).unwrap();
+
+                // Use only the part of the buffer with the decrypted data
+                let decoded = &decoded[..decoded_len];
+
+                // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
             }
         }
 
