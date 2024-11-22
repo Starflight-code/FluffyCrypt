@@ -100,3 +100,44 @@ impl Message<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::u64;
+
+    use super::*;
+
+    #[test]
+    fn test_networkize_1() {
+        assert_eq!(
+            Message::UcidReject(u64::MAX).to_req(),
+            vec![1, 255, 255, 255, 255, 255, 255, 255, 255]
+        );
+    }
+
+    #[test]
+    fn test_networkize_2() {
+        assert_eq!(
+            Message::Accepted(&[0, 0, 0, 0]).to_req(),
+            vec![3, 0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn test_networkize_3() {
+        assert_eq!(Message::Malformed().to_req(), vec![]);
+    }
+
+    #[test]
+    fn test_networkize_4() {
+        assert_eq!(Message::RateReject().to_req(), vec![2]);
+    }
+
+    #[test]
+    fn test_networkize_5() {
+        assert_eq!(
+            Message::RegisterClient((256, &[133, 007])).to_req(),
+            vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 133, 007]
+        );
+    }
+}

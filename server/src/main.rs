@@ -234,9 +234,6 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::u64;
-
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
     #[test]
