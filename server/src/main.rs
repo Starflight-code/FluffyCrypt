@@ -34,6 +34,10 @@ pub async fn establish_connection() -> SqliteConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
+fn shift_u64_to_i64(number: u64) -> i64 {
+    return ((number as i128) - (i64::MAX as i128)) as i64;
+}
+
 async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
@@ -42,7 +46,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     match msg {
         Message::RegisterClient((id, recieved_key)) => {
             if (client_dsl::client_key
-                .filter(client_dsl::ucid.eq(id as i64))
+                .filter(client_dsl::ucid.eq(shift_u64_to_i64(id)))
                 .first(&mut db) as Result<ClientKey, _>)
                 .is_ok()
             {
@@ -70,7 +74,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
 
                 let record: NewClientKey = NewClientKey {
                     asymmetric_key_id: 0,
-                    ucid: ((id as i128) - (i64::MAX as i128)) as i64,
+                    ucid: shift_u64_to_i64(id),
                     encryption_key: decoded,
                     paid: false,
                 };
