@@ -14,8 +14,8 @@ diesel::table! {
         id -> Integer,
         asymmetric_key_id -> Integer,
         ucid -> BigInt,
-        encryption_key -> Text,
         paid -> Bool,
+        encryption_key -> Binary,
     }
 }
 

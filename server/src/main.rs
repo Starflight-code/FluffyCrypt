@@ -9,7 +9,7 @@ use diesel::{
     dsl::insert_into, Connection, ExpressionMethods, QueryDsl, RunQueryDsl, SqliteConnection,
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use models::{AsymmetricKey, ClientKey, NewAsymmetricKey};
+use models::{AsymmetricKey, ClientKey, NewAsymmetricKey, NewClientKey};
 use openssl::{
     ec::{self, EcGroup},
     nid::Nid,
@@ -20,13 +20,13 @@ use tokio::{
     spawn,
 };
 
-pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
+use crate::comms::Message;
 
 mod comms;
 mod models;
 mod schema;
 
-use crate::comms::Message;
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 pub async fn establish_connection() -> SqliteConnection {
     let database_url = "./data.db";
@@ -34,13 +34,13 @@ pub async fn establish_connection() -> SqliteConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-async fn handle_message(msg: Message<'_>, socket: TcpStream) {
+async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
 
     let mut db = establish_connection().await;
     match msg {
-        Message::RegisterClient((id, key)) => {
+        Message::RegisterClient((id, recieved_key)) => {
             if (client_dsl::client_key
                 .filter(client_dsl::ucid.eq(id as i64))
                 .first(&mut db) as Result<ClientKey, _>)
@@ -51,19 +51,34 @@ async fn handle_message(msg: Message<'_>, socket: TcpStream) {
                     let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
                 }
             } else {
+                let decryption_key: AsymmetricKey =
+                    asym_dsl::asymmetric_key.first(&mut db).unwrap();
                 // fetch asymmetric key and decrypt message here
-                let p_key = openssl::ec::EcKey::private_key_from_pem(b"CHANGE ME").unwrap(); // swap key placeholder with database read
+                let p_key =
+                    openssl::ec::EcKey::private_key_from_pem(&decryption_key.private_key).unwrap(); // swap key placeholder with database read
                 let p_key = openssl::pkey::PKey::from_ec_key(p_key).unwrap();
                 let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
 
-                let buffer_len = decryptor.decrypt_len(&key).unwrap();
+                let buffer_len = decryptor.decrypt_len(&recieved_key).unwrap();
                 let mut decoded = vec![0u8; buffer_len];
 
                 // Decrypt the data and get its length
-                let decoded_len = decryptor.decrypt(&key, &mut decoded).unwrap();
+                let decoded_len = decryptor.decrypt(&recieved_key, &mut decoded).unwrap();
 
                 // Use only the part of the buffer with the decrypted data
                 let decoded = &decoded[..decoded_len];
+
+                let record: NewClientKey = NewClientKey {
+                    asymmetric_key_id: 0,
+                    ucid: ((id as i128) - (i64::MAX as i128)) as i64,
+                    encryption_key: decoded,
+                    paid: false,
+                };
+
+                insert_into(client_dsl::client_key)
+                    .values(record)
+                    .execute(&mut db)
+                    .unwrap();
 
                 // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
             }
@@ -108,7 +123,8 @@ async fn handle_connection(
             let len = len.unwrap();
             read_buff.truncate(len);
 
-            dbg!(Message::from_req(&mut read_buff));
+            let msg = Message::from_req(&mut read_buff);
+            handle_message(msg, &socket).await;
         } else {
             sleep(Duration::from_millis(1));
             continue;
