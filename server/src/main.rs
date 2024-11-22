@@ -35,7 +35,7 @@ pub async fn establish_connection() -> SqliteConnection {
 }
 
 fn shift_u64_to_i64(number: u64) -> i64 {
-    return ((number as i128) - (i64::MAX as i128)) as i64;
+    return (i64::MIN as i128 + (number as i128)) as i64;
 }
 
 async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
@@ -229,5 +229,28 @@ async fn main() {
             Ok((socket, addr)) => handle_connection(socket, addr, &mut limit_map).await,
             Err(e) => println!("couldn't get client: {:?}", e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::u64;
+
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+
+    #[test]
+    fn test_value_shift_1() {
+        assert_eq!(shift_u64_to_i64(0), i64::MIN);
+    }
+
+    #[test]
+    fn test_value_shift_2() {
+        assert_eq!(shift_u64_to_i64(u64::MAX / 2), -1);
+    }
+
+    #[test]
+    fn test_value_shift_3() {
+        assert_eq!(shift_u64_to_i64(u64::MAX), i64::MAX);
     }
 }
