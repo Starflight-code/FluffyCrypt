@@ -9,6 +9,7 @@ crossbeam-channel = "0.5.13"
 # in case we're still planning on a GUI, here's iced. Read about it here: https://book.iced.rs/
 #iced = "0.13.1"
 openssl = {version = "0.10.68", features = ["vendored"] }
+rand = "0.8.5"
 # this supplies async and thread support, as well as (async variants) of our networking stuff. Read more here: https://tokio.rs/tokio/tutorial
 # and here: https://tokio.rs/tokio/tutorial/io
 tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }

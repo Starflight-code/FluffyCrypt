@@ -4,6 +4,7 @@ use std::vec::Vec;
 
 use zeroize::Zeroize;
 
+mod comms;
 mod encryptor;
 mod filesystem;
 
