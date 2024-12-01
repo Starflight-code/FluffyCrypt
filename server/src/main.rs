@@ -10,10 +10,7 @@ use diesel::{
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey, NewClientKey};
-use openssl::{
-    ec::{self, EcGroup},
-    nid::Nid,
-};
+use openssl::rsa::Rsa;
 use std::net::IpAddr::{V4, V6};
 use tokio::{
     net::{TcpListener, TcpSocket, TcpStream},
@@ -45,6 +42,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     let mut db = establish_connection().await;
     match msg {
         Message::RegisterClient((id, recieved_key)) => {
+            dbg!((id, recieved_key));
             if (client_dsl::client_key
                 .filter(client_dsl::ucid.eq(shift_u64_to_i64(id)))
                 .first(&mut db) as Result<ClientKey, _>)
@@ -59,8 +57,8 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                     asym_dsl::asymmetric_key.first(&mut db).unwrap();
                 // fetch asymmetric key and decrypt message here
                 let p_key =
-                    openssl::ec::EcKey::private_key_from_pem(&decryption_key.private_key).unwrap(); // swap key placeholder with database read
-                let p_key = openssl::pkey::PKey::from_ec_key(p_key).unwrap();
+                    openssl::rsa::Rsa::private_key_from_pem(&decryption_key.private_key).unwrap(); // swap key placeholder with database read
+                let p_key = openssl::pkey::PKey::from_rsa(p_key).unwrap();
                 let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
 
                 let buffer_len = decryptor.decrypt_len(&recieved_key).unwrap();
@@ -83,6 +81,10 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                     .values(record)
                     .execute(&mut db)
                     .unwrap();
+                if socket.writable().await.is_ok() {
+                    // key is a duplicate, send rejection
+                    let _ = socket.try_write(&Message::Accepted(recieved_key).to_req().to_vec());
+                }
 
                 // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
             }
@@ -185,16 +187,12 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
 async fn generate_and_write_key(db: &mut SqliteConnection) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
 
-    // generate a key if none are available
-    let curve = Nid::X9_62_PRIME256V1;
-    let group = &EcGroup::from_curve_name(curve).unwrap();
-    let key = ec::EcKey::generate(group).unwrap();
-    let cur_string = curve.as_raw().to_string();
+    let key = Rsa::generate(4096).unwrap();
 
     let record = NewAsymmetricKey {
         public_key: &key.public_key_to_pem().unwrap(),
         private_key: &key.private_key_to_pem().unwrap(),
-        algo_metadata: cur_string.as_str(),
+        algo_metadata: "",
     };
     insert_into(asym_dsl::asymmetric_key)
         .values(record)
@@ -209,6 +207,7 @@ async fn main() {
 
     db.run_pending_migrations(MIGRATIONS)
         .expect("Error applying Diesel-rs SQLite migrations");
+
     if (asym_dsl::asymmetric_key.first(&mut db) as Result<AsymmetricKey, _>).is_err() {
         generate_and_write_key(&mut db).await;
     }
@@ -217,7 +216,7 @@ async fn main() {
     let listener = TcpListener::bind("127.0.0.1:4200")
         .await
         .expect("Could not bind to port 4200");
-    spawn(async move {
+    /*spawn(async move {
         connect_to_host(1).await;
     });
     spawn(async move {
@@ -225,7 +224,7 @@ async fn main() {
     });
     spawn(async move {
         connect_to_host(2).await;
-    });
+    });*/
     loop {
         match listener.accept().await {
             Ok((socket, addr)) => handle_connection(socket, addr, &mut limit_map).await,

