@@ -1,6 +1,10 @@
 use rand::{self, Rng};
 use std::time::{self, SystemTime};
 
+const BITS_OF_TIME: u64 = 50;
+const BITS_OF_RANDOM: u64 = 14;
+const MAX_TIME: u64 = 2 ^ 50;
+
 pub(crate) fn generate_ucid() -> Result<u64, ()> {
     let timestamp = time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
 
@@ -8,12 +12,12 @@ pub(crate) fn generate_ucid() -> Result<u64, ()> {
         return Err(());
     }
     let timestamp = timestamp.unwrap().as_millis();
-    if timestamp > 2 ^ 50 {
+    if timestamp > MAX_TIME.into() {
         // if timestamp overflows beyond 50 bits, it can't be generated
         return Err(());
     }
-    let mut timestamp = (timestamp as u64) << 14; // position timestamp on first 50 bits of u64
-    timestamp += rand::thread_rng().gen_range(0..2 ^ 16); // fills in 14 bits of random
+    let mut timestamp = (timestamp as u64) << BITS_OF_RANDOM; // position timestamp on first 50 bits of u64
+    timestamp += rand::thread_rng().gen_range(0..2 ^ BITS_OF_RANDOM); // fills in 14 bits of random
 
     return Ok(timestamp);
 }
@@ -159,5 +163,10 @@ mod tests {
             Message::RegisterClient((256, &[133, 007])).to_req(),
             vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 133, 007]
         );
+    }
+
+    #[test]
+    fn snowflake_bit_total() {
+        assert_eq!(BITS_OF_TIME + BITS_OF_RANDOM, 64)
     }
 }
