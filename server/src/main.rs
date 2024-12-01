@@ -164,8 +164,10 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
             .unwrap()
             .as_secs();
     if let V4(ip) = addr.ip() {
+        // as u128 makes a truncating cast, in this case adding 96 0 bits to the start of the number (truncation particulars of cast do not matter)
         if let Some(timestamp) = limit_map.insert(ip.to_bits() as u128, since_epoch) {
             if timestamp + 30 > since_epoch {
+                // accepts one connection every 30 seconds
                 return false;
             }
         }

@@ -23,6 +23,7 @@ pub(crate) fn generate_ucid() -> Result<u64, ()> {
     return Ok(timestamp);
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum Message<'a> {
     // contains both client & server commands
@@ -34,6 +35,7 @@ pub(crate) enum Message<'a> {
     Malformed(),
 }
 
+#[allow(dead_code)]
 impl Message<'_> {
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
         if values.len() != 8 {
