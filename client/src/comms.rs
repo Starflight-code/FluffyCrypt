@@ -3,7 +3,8 @@ use std::time::{self, SystemTime};
 
 const BITS_OF_TIME: u64 = 50;
 const BITS_OF_RANDOM: u64 = 14;
-const MAX_TIME: u64 = 2 ^ 50;
+const MAX_TIME: u64 = 2 ^ BITS_OF_TIME;
+const MAX_RANDOM: u64 = 2 ^ BITS_OF_RANDOM;
 
 pub(crate) fn generate_ucid() -> Result<u64, ()> {
     let timestamp = time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
@@ -17,7 +18,7 @@ pub(crate) fn generate_ucid() -> Result<u64, ()> {
         return Err(());
     }
     let mut timestamp = (timestamp as u64) << BITS_OF_RANDOM; // position timestamp on first 50 bits of u64
-    timestamp += rand::thread_rng().gen_range(0..2 ^ BITS_OF_RANDOM); // fills in 14 bits of random
+    timestamp += rand::thread_rng().gen_range(0..MAX_RANDOM); // fills in 14 bits of random
 
     return Ok(timestamp);
 }

