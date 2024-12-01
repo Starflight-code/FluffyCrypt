@@ -58,7 +58,6 @@ async fn main() {
     let mut ucid = generate_ucid().unwrap();
 
     key.zeroize(); // zero out key, not needed anymore
-    dbg!(comms::Message::RegisterClient((ucid, encrypted.as_slice())));
 
     let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 

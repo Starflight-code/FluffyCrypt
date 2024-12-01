@@ -42,7 +42,6 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     let mut db = establish_connection().await;
     match msg {
         Message::RegisterClient((id, recieved_key)) => {
-            dbg!((id, recieved_key));
             if (client_dsl::client_key
                 .filter(client_dsl::ucid.eq(shift_u64_to_i64(id)))
                 .first(&mut db) as Result<ClientKey, _>)
