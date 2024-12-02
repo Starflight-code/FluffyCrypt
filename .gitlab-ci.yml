@@ -1,3 +1,20 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+
+cache:
+  - key:
+      files:
+        - client/Cargo.lock
+    paths:
+      - client/target/debug/deps
+      - client/target/debug/build
+  - key:
+      files:
+        - server/Cargo.lock
+    paths:
+      - server/target/debug/deps
+      - server/target/debug/build
 # This file is a template, and might need editing before it works on your project.
 # You can copy and paste this template into a new `.gitlab-ci.yml` file.
 # You should not add this template to an existing `.gitlab-ci.yml` file by using the `include:` keyword.
