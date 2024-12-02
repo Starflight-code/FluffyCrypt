@@ -48,24 +48,29 @@ pub(crate) enum Message<'a> {
     Malformed(),
 }
 
+const NUMBER_OF_SEGMENTS: u64 = 8;
+
 impl Message<'_> {
     /// constructs a u64 from an 8 element u8 array (maps first values to most significant bits and last to least significant bits)
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
-        if values.len() != 8 {
+        if values.len() != NUMBER_OF_SEGMENTS as usize {
             return Err(());
         }
         let mut uid: u64 = 0;
-        for i in 0..8 {
-            uid += u64::from(values[i]) << 8 * (7 - i); // use bitwise shifts to build a u64 value from in order u8 values
+        for i in 0..NUMBER_OF_SEGMENTS as usize {
+            uid +=
+                u64::from(values[i]) << NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64);
+            // use bitwise shifts to build a u64 value from in order u8 values
         }
         return Ok(uid);
     }
 
     /// splits a u64 value into an 8 element u8 vector (8 bits per value, starting from most significant to least significant bits)
     fn u8_array_from_u64<'a>(values: u64) -> Vec<u8> {
-        let mut uid = [0 as u8; 8];
-        for i in 0..8 {
-            uid[i] = (values >> 8 * (7 - i)) as u8; // use bitwise shifts to seperate a u64 value into u8 values
+        let mut uid = [0 as u8; NUMBER_OF_SEGMENTS as usize];
+        for i in 0..NUMBER_OF_SEGMENTS as usize {
+            uid[i] = (values >> NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64)) as u8;
+            // use bitwise shifts to seperate a u64 value into u8 values
         }
         return uid.to_vec();
     }
