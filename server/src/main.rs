@@ -22,20 +22,26 @@ mod comms;
 mod models;
 mod schema;
 
+/// diesel-rs migrations, automatically migrates DB on startup for easy deployment
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
+
+/// SERVER IP, used for generating obfuscated `ip-port.bin` file
 pub const SERVER_ADDRESS: &'static str = "127.0.0.1:4200";
 
+/// establishes connection with the local SQLite database, returns the connection
 pub async fn establish_connection() -> SqliteConnection {
     let database_url = "./data.db";
     SqliteConnection::establish(&database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
+/// shifts a u64 to fit within a i64, by offsetting the value by -1/2 * u64 range
 fn shift_u64_to_i64(number: u64) -> i64 {
     // performs 1/2 * u64 range shift to lower (allows storing u64 full range in i64 datatype)
     return (i64::MIN as i128 + (number as i128)) as i64;
 }
 
+/// handles a `msg` recieved, sending responses to the provided `socket`
 async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
@@ -99,6 +105,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
     }
 }
 
+/// handles a connection object, handles rate limited by checking `limit_map` for IP matches
 async fn handle_connection(
     socket: TcpStream,
     addr: SocketAddr,
@@ -142,6 +149,7 @@ async fn handle_connection(
     }
 }
 
+/// connects to the local server, used for testing
 #[allow(dead_code)]
 async fn connect_to_host(delay: i32) {
     sleep(Duration::from_secs(delay.try_into().unwrap()));
@@ -164,6 +172,7 @@ async fn connect_to_host(delay: i32) {
     }
 }
 
+/// writes the encrypted server IP & Port to the filesystem, uses `db` to lookup current key
 async fn write_obfuscated_ip_port(db: &mut SqliteConnection) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
 
@@ -181,6 +190,7 @@ async fn write_obfuscated_ip_port(db: &mut SqliteConnection) {
     output.write_all(buff.as_slice()).unwrap();
 }
 
+/// checks if the address has been used in the last 30 seconds
 async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>) -> bool {
     let since_epoch =
         SystemTime::now() // custom epoch starting 2024-1-1 (ISO 8601 format)
@@ -206,6 +216,7 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
     return true;
 }
 
+/// generates an RSA key and writes it to the database
 async fn generate_and_write_key(db: &mut SqliteConnection) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
 

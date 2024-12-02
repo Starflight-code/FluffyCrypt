@@ -2,6 +2,7 @@ use openssl::rsa::{self, Padding};
 
 use crate::{PUB_KEY, SERVER_IP};
 
+/// gets the server IP and port using the bundled `PUB_KEY` and `SERVER_IP`
 pub(crate) fn get_ip() -> String {
     let mut output_buff = vec![0u8; SERVER_IP.len()];
 

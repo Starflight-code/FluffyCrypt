@@ -23,18 +23,22 @@ const THREADS: i32 = 8;
 
 #[allow(dead_code)]
 #[cfg(unix)]
+/// A PEM formatted public key, corresponding with the server's private key
 const PUB_KEY: &[u8] = include_bytes!("../pub.key");
 
 #[allow(dead_code)]
 #[cfg(windows)]
+/// A PEM formatted public key, corresponding with the server's private key
 const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
 
 #[allow(dead_code)]
 #[cfg(unix)]
+/// A PKCS1 formatted binary file containing the IP/PORT ciphertext
 const SERVER_IP: &[u8] = include_bytes!("../ip-port.bin");
 
 #[allow(dead_code)]
 #[cfg(windows)]
+/// A PKCS1 formatted binary file containing the IP/PORT ciphertext
 const SERVER_IP: &[u8] = include_bytes!("..\\ip-port.bin");
 
 #[tokio::main]

@@ -6,6 +6,8 @@ const BITS_OF_RANDOM: u64 = 14;
 const MAX_TIME: u64 = 2_u64.pow(BITS_OF_TIME as u32);
 const MAX_RANDOM: u64 = 2_u64.pow(BITS_OF_RANDOM as u32);
 
+/// generates snowflake id using unix millis (first `BITS_OF_TIME` bits) and `BITS_OF_RANDOM` random bits.
+/// makes a total of 64 bits
 pub(crate) fn generate_ucid() -> Result<u64, ()> {
     let timestamp = time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
 
@@ -25,17 +27,29 @@ pub(crate) fn generate_ucid() -> Result<u64, ()> {
 
 #[allow(dead_code)]
 #[derive(Debug)]
+/// contains both client & server messages
 pub(crate) enum Message<'a> {
-    // contains both client & server messages
-    RegisterClient((u64, &'a [u8])), // client register (client send)
-    UcidReject(u64),                 // client message reject (server send)
-    RateReject(),                    // client message reject (server send)
-    InvalidReq(),                    // client message reject (server send)
-    Accepted(&'a [u8]),              // client message accepted (server send)
-    Malformed(),                     // internal (parser generated, non-transmittable)
+    /// client register (client send)
+    RegisterClient((u64, &'a [u8])),
+
+    /// client message reject (server send)
+    UcidReject(u64),
+
+    /// client message reject (server send)
+    RateReject(),
+
+    /// client message reject (server send)
+    InvalidReq(),
+
+    /// client message accepted (server send)
+    Accepted(&'a [u8]),
+
+    /// internal (parser generated, non-transmittable)
+    Malformed(),
 }
 
 impl Message<'_> {
+    /// constructs a u64 from an 8 element u8 array (maps first values to most significant bits and last to least significant bits)
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
         if values.len() != 8 {
             return Err(());
@@ -47,6 +61,7 @@ impl Message<'_> {
         return Ok(uid);
     }
 
+    /// splits a u64 value into an 8 element u8 vector (8 bits per value, starting from most significant to least significant bits)
     fn u8_array_from_u64<'a>(values: u64) -> Vec<u8> {
         let mut uid = [0 as u8; 8];
         for i in 0..8 {
@@ -54,6 +69,8 @@ impl Message<'_> {
         }
         return uid.to_vec();
     }
+
+    /// deserializes bits into a Message object
     pub fn from_req(network_msg: &mut [u8]) -> Message {
         if network_msg.len() == 0 {
             return Message::Malformed();
@@ -95,6 +112,7 @@ impl Message<'_> {
         }
     }
 
+    /// serializes a Message object to transmittable bits
     pub fn to_req<'a>(&self) -> Vec<u8> {
         let mut req = Vec::new();
         match self {

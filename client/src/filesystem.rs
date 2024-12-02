@@ -3,6 +3,7 @@ use std::{fs::DirEntry, path::PathBuf};
 use crossbeam_channel::Sender;
 use tracing::{event, Level};
 
+/// provides directory scanning using recursion, returns result
 #[allow(dead_code)]
 pub(crate) fn recurse_directory(path: PathBuf) -> Option<Vec<DirEntry>> {
     let mut files = Vec::new();
@@ -27,6 +28,7 @@ pub(crate) fn recurse_directory(path: PathBuf) -> Option<Vec<DirEntry>> {
     return Some(files);
 }
 
+/// provides directory scanning using recursion, sends files to `sender` when found
 pub(crate) fn recurse_directory_with_channel(path: PathBuf, sender: &Sender<DirEntry>) {
     if path.read_dir().is_err() {
         return;
