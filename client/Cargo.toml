@@ -3,15 +3,27 @@ name = "fluffycrypt_client"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+strip = true # Automatically strip symbols from the binary.
+lto = true   # Enable link time optimizations
+
 [dependencies]
 # this is for multiple producer, multiple consumer thread-safe queues. Read more here: https://docs.rs/crossbeam-channel/latest/crossbeam_channel/
 crossbeam-channel = "0.5.13"
+dirs = "5.0.1"
 # in case we're still planning on a GUI, here's iced. Read about it here: https://book.iced.rs/
 #iced = "0.13.1"
 openssl = {version = "0.10.68", features = ["vendored"] }
+rand = "0.8.5"
 # this supplies async and thread support, as well as (async variants) of our networking stuff. Read more here: https://tokio.rs/tokio/tutorial
 # and here: https://tokio.rs/tokio/tutorial/io
 tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
+tracing = "0.1.40" # tracing/logging facilities, supporting multiple output handlers for async-safe logging. Read more here: https://docs.rs/tracing/latest/tracing/
+tracing-subscriber = "0.3.19"
 # adds memory zeroing primitizes, using "Rust intrinsics to prevent optimization" (optimization is a common pitfall of memory zeroing)
 # read more here: https://docs.rs/zeroize/latest/zeroize/
 zeroize = "1.8.1"
+
+# code coverage: https://github.com/xd009642/tarpaulin
+
+# for bundling the key (hooks into cargo's build pipeline) https://doc.rust-lang.org/std/macro.include_bytes.html
