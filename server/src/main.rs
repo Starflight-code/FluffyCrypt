@@ -1,5 +1,7 @@
 use std::{
     collections::HashMap,
+    fs::File,
+    io::Write,
     net::SocketAddr,
     thread::sleep,
     time::{Duration, SystemTime},
@@ -10,7 +12,7 @@ use diesel::{
 };
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey, NewClientKey};
-use openssl::rsa::Rsa;
+use openssl::rsa::{Padding, Rsa};
 use std::net::IpAddr::{V4, V6};
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
@@ -21,6 +23,7 @@ mod models;
 mod schema;
 
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
+pub const SERVER_ADDRESS: &'static str = "127.0.0.1:4200";
 
 pub async fn establish_connection() -> SqliteConnection {
     let database_url = "./data.db";
@@ -157,6 +160,23 @@ async fn connect_to_host(delay: i32) {
     }
 }
 
+async fn write_obfuscated_ip_port(db: &mut SqliteConnection) {
+    use crate::schema::asymmetric_key::dsl as asym_dsl;
+
+    // import key
+    let key: AsymmetricKey = asym_dsl::asymmetric_key.first(db).unwrap();
+    let rsa = openssl::rsa::Rsa::private_key_from_pem(key.private_key.as_slice()).unwrap();
+
+    let mut buff = vec![0u8; rsa.size() as usize];
+    let _ = rsa
+        .private_encrypt(SERVER_ADDRESS.as_bytes(), &mut buff, Padding::PKCS1)
+        .unwrap();
+
+    // encrypt & print
+    let mut output = File::create("ip-port.bin").unwrap();
+    output.write_all(buff.as_slice()).unwrap();
+}
+
 async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>) -> bool {
     let since_epoch =
         SystemTime::now() // custom epoch starting 2024-1-1 (ISO 8601 format)
@@ -173,7 +193,7 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
         }
     }
     if let V6(ip) = addr.ip() {
-        if let Some(timestamp) = limit_map.insert(ip.to_bits() as u128, since_epoch) {
+        if let Some(timestamp) = limit_map.insert(ip.to_bits(), since_epoch) {
             if timestamp + 30 > since_epoch {
                 return false;
             }
@@ -209,6 +229,7 @@ async fn main() {
     if (asym_dsl::asymmetric_key.first(&mut db) as Result<AsymmetricKey, _>).is_err() {
         generate_and_write_key(&mut db).await;
     }
+    write_obfuscated_ip_port(&mut db).await;
 
     let mut limit_map: HashMap<u128, u64> = HashMap::new();
     let listener = TcpListener::bind("127.0.0.1:4200")
