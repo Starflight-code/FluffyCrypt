@@ -90,6 +90,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
             }
         }
 
+        // all other values are malformed (should not be sent to server), ignore them (verbose for protocol clarity)
         Message::UcidReject(_) => return,
         Message::RateReject() => return,
         Message::Accepted(_) => return,
@@ -112,12 +113,14 @@ async fn handle_connection(
         }
         return;
     }
+
     println!("Connection recieved from: {}", addr);
     loop {
         let read_ready = socket.readable().await;
         if read_ready.is_ok() {
             let mut read_buff = vec![0; 1024];
 
+            // read buffer, handle errors
             let len = socket.try_read(read_buff.as_mut_slice());
             if len.is_err() {
                 sleep(Duration::from_millis(1));
@@ -129,6 +132,7 @@ async fn handle_connection(
             let len = len.unwrap();
             read_buff.truncate(len);
 
+            // parse network message, send to handler
             let msg = Message::from_req(&mut read_buff);
             handle_message(msg, &socket).await;
         } else {
@@ -205,8 +209,10 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
 async fn generate_and_write_key(db: &mut SqliteConnection) {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
 
+    // generate key
     let key = Rsa::generate(4096).unwrap();
 
+    // save to DB
     let record = NewAsymmetricKey {
         public_key: &key.public_key_to_pem().unwrap(),
         private_key: &key.private_key_to_pem().unwrap(),

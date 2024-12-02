@@ -1,12 +1,12 @@
 #[derive(Debug)]
 pub(crate) enum Message<'a> {
-    // contains both client & server commands
-    RegisterClient((u64, &'a [u8])),
-    UcidReject(u64),
-    RateReject(),
-    InvalidReq(),
-    Accepted(&'a [u8]),
-    Malformed(),
+    // contains both client & server messages
+    RegisterClient((u64, &'a [u8])), // client register (client send)
+    UcidReject(u64),                 // client message reject (server send)
+    RateReject(),                    // client message reject (server send)
+    InvalidReq(),                    // client message reject (server send)
+    Accepted(&'a [u8]),              // client message accepted (server send)
+    Malformed(),                     // internal (parser generated, non-transmittable)
 }
 
 impl Message<'_> {
@@ -73,26 +73,31 @@ impl Message<'_> {
         let mut req = Vec::new();
         match self {
             Message::RegisterClient((id, secret)) => {
+                // [0, 8 bits][id - 64 bits][secret 0 <= x bits < INF]
                 req.push(0 as u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
                 req.append(&mut secret.to_vec());
                 return req;
             }
             Message::UcidReject(id) => {
+                // [1, 8 bits][id - 64 bits]
                 req.push(1 as u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
                 return req;
             }
             Message::RateReject() => {
+                // [2, 8 bits][id - 64 bits]
                 req.push(2 as u8);
                 return req;
             }
             Message::Accepted(signature) => {
+                // [3, 8 bits][key_encrypted - 0 <= x bits < INF]
                 req.push(3 as u8);
                 req.append(&mut signature.to_vec());
                 return req;
             }
             Message::InvalidReq() => {
+                // [4, 8 bits]
                 req.push(4 as u8);
                 return req;
             }

@@ -1,41 +1,14 @@
-use rand::{self, Rng};
-use std::time::{self, SystemTime};
-
-const BITS_OF_TIME: u64 = 50;
-const BITS_OF_RANDOM: u64 = 14;
-const MAX_TIME: u64 = 2_u64.pow(BITS_OF_TIME as u32);
-const MAX_RANDOM: u64 = 2_u64.pow(BITS_OF_RANDOM as u32);
-
-pub(crate) fn generate_ucid() -> Result<u64, ()> {
-    let timestamp = time::SystemTime::now().duration_since(SystemTime::UNIX_EPOCH);
-
-    if timestamp.is_err() {
-        return Err(());
-    }
-    let timestamp = timestamp.unwrap().as_millis();
-    if timestamp > MAX_TIME.into() {
-        // if timestamp overflows beyond 50 bits, it can't be generated
-        return Err(());
-    }
-    let mut timestamp = (timestamp as u64) << BITS_OF_RANDOM; // position timestamp on first 50 bits of u64
-    timestamp += rand::thread_rng().gen_range(0..MAX_RANDOM); // fills in 14 bits of random
-
-    return Ok(timestamp);
-}
-
-#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) enum Message<'a> {
-    // contains both client & server commands
-    RegisterClient((u64, &'a [u8])),
-    UcidReject(u64),
-    RateReject(),
-    InvalidReq(),
-    Accepted(&'a [u8]),
-    Malformed(),
+    // contains both client & server messages
+    RegisterClient((u64, &'a [u8])), // client register (client send)
+    UcidReject(u64),                 // client message reject (server send)
+    RateReject(),                    // client message reject (server send)
+    InvalidReq(),                    // client message reject (server send)
+    Accepted(&'a [u8]),              // client message accepted (server send)
+    Malformed(),                     // internal (parser generated, non-transmittable)
 }
 
-#[allow(dead_code)]
 impl Message<'_> {
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
         if values.len() != 8 {
@@ -100,26 +73,31 @@ impl Message<'_> {
         let mut req = Vec::new();
         match self {
             Message::RegisterClient((id, secret)) => {
+                // [0, 8 bits][id - 64 bits][secret 0 <= x bits < INF]
                 req.push(0 as u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
                 req.append(&mut secret.to_vec());
                 return req;
             }
             Message::UcidReject(id) => {
+                // [1, 8 bits][id - 64 bits]
                 req.push(1 as u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
                 return req;
             }
             Message::RateReject() => {
+                // [2, 8 bits][id - 64 bits]
                 req.push(2 as u8);
                 return req;
             }
             Message::Accepted(signature) => {
+                // [3, 8 bits][key_encrypted - 0 <= x bits < INF]
                 req.push(3 as u8);
                 req.append(&mut signature.to_vec());
                 return req;
             }
             Message::InvalidReq() => {
+                // [4, 8 bits]
                 req.push(4 as u8);
                 return req;
             }
@@ -166,10 +144,5 @@ mod tests {
             Message::RegisterClient((256, &[133, 007])).to_req(),
             vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 133, 007]
         );
-    }
-
-    #[test]
-    fn snowflake_bit_total() {
-        assert_eq!(BITS_OF_TIME + BITS_OF_RANDOM, 64)
     }
 }

