@@ -3,6 +3,10 @@ name = "fluffycrypt_server"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+strip = true # Automatically strip symbols from the binary.
+lto = true   # Enable link time optimizations
+
 [dependencies]
 diesel = { version = "2.2.4", features = ["sqlite", "returning_clauses_for_sqlite_3_35"] }
 diesel_migrations = "2.2.0"

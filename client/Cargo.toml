@@ -3,6 +3,10 @@ name = "fluffycrypt_client"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+strip = true # Automatically strip symbols from the binary.
+lto = true   # Enable link time optimizations
+
 [dependencies]
 # this is for multiple producer, multiple consumer thread-safe queues. Read more here: https://docs.rs/crossbeam-channel/latest/crossbeam_channel/
 crossbeam-channel = "0.5.13"
