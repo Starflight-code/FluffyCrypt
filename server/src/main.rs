@@ -12,10 +12,7 @@ use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use models::{AsymmetricKey, ClientKey, NewAsymmetricKey, NewClientKey};
 use openssl::rsa::Rsa;
 use std::net::IpAddr::{V4, V6};
-use tokio::{
-    net::{TcpListener, TcpSocket, TcpStream},
-    spawn,
-};
+use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
 use crate::comms::Message;
 
@@ -32,6 +29,7 @@ pub async fn establish_connection() -> SqliteConnection {
 }
 
 fn shift_u64_to_i64(number: u64) -> i64 {
+    // performs 1/2 * u64 range shift to lower (allows storing u64 full range in i64 datatype)
     return (i64::MIN as i128 + (number as i128)) as i64;
 }
 
@@ -137,6 +135,7 @@ async fn handle_connection(
     }
 }
 
+#[allow(dead_code)]
 async fn connect_to_host(delay: i32) {
     sleep(Duration::from_secs(delay.try_into().unwrap()));
     let to_tx: Vec<Vec<u8>> = vec![
@@ -215,15 +214,6 @@ async fn main() {
     let listener = TcpListener::bind("127.0.0.1:4200")
         .await
         .expect("Could not bind to port 4200");
-    /*spawn(async move {
-        connect_to_host(1).await;
-    });
-    spawn(async move {
-        connect_to_host(2).await;
-    });
-    spawn(async move {
-        connect_to_host(2).await;
-    });*/
     loop {
         match listener.accept().await {
             Ok((socket, addr)) => handle_connection(socket, addr, &mut limit_map).await,

