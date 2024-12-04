@@ -33,6 +33,7 @@ test:clippy:
       - server/target/debug/deps
       - server/target/debug/build
   script:
+    - rustup component add clippy
     - cd client
     - rustc --version && cargo --version  # Print version info for debugging
     - cargo clippy
