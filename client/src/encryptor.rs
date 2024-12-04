@@ -50,6 +50,7 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
 }
 
 /// wraps a key using the embedded `PUB_KEY` value
+#[allow(clippy::ptr_arg)]
 pub(crate) fn wrap_key(key: &Vec<u8>) -> Vec<u8> {
     // import key
     let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();

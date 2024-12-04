@@ -50,6 +50,7 @@ pub(crate) enum Message<'a> {
 
 const NUMBER_OF_SEGMENTS: u64 = 8;
 
+#[allow(clippy::needless_range_loop)]
 impl Message<'_> {
     /// constructs a u64 from an 8 element u8 array (maps first values to most significant bits and last to least significant bits)
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
@@ -66,7 +67,7 @@ impl Message<'_> {
     }
 
     /// splits a u64 value into an 8 element u8 vector (8 bits per value, starting from most significant to least significant bits)
-    fn u8_array_from_u64<'a>(values: u64) -> Vec<u8> {
+    fn u8_array_from_u64(values: u64) -> Vec<u8> {
         let mut uid = [0_u8; NUMBER_OF_SEGMENTS as usize];
         for i in 0..NUMBER_OF_SEGMENTS as usize {
             uid[i] = (values >> (NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64))) as u8;
@@ -118,7 +119,7 @@ impl Message<'_> {
     }
 
     /// serializes a Message object to transmittable bits
-    pub fn to_req<'a>(&self) -> Vec<u8> {
+    pub fn to_req(&self) -> Vec<u8> {
         let mut req = Vec::new();
         match self {
             Message::RegisterClient((id, secret)) => {

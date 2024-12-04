@@ -26,19 +26,19 @@ mod schema;
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 /// SERVER IP, used for generating obfuscated `ip-port.bin` file
-pub const SERVER_ADDRESS: &'static str = "127.0.0.1:4200";
+pub const SERVER_ADDRESS: &str = "127.0.0.1:4200";
 
 /// establishes connection with the local SQLite database, returns the connection
 pub async fn establish_connection() -> SqliteConnection {
     let database_url = "./data.db";
-    SqliteConnection::establish(&database_url)
+    SqliteConnection::establish(database_url)
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
 /// shifts a u64 to fit within a i64, by offsetting the value by -1/2 * u64 range
 fn shift_u64_to_i64(number: u64) -> i64 {
     // performs 1/2 * u64 range shift to lower (allows storing u64 full range in i64 datatype)
-    return (i64::MIN as i128 + (number as i128)) as i64;
+    (i64::MIN as i128 + (number as i128)) as i64
 }
 
 /// handles a `msg` recieved, sending responses to the provided `socket`
@@ -67,11 +67,11 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                 let p_key = openssl::pkey::PKey::from_rsa(p_key).unwrap();
                 let decryptor = openssl::encrypt::Decrypter::new(&p_key).unwrap();
 
-                let buffer_len = decryptor.decrypt_len(&recieved_key).unwrap();
+                let buffer_len = decryptor.decrypt_len(recieved_key).unwrap();
                 let mut decoded = vec![0u8; buffer_len];
 
                 // Decrypt the data and get its length
-                let decoded_len = decryptor.decrypt(&recieved_key, &mut decoded).unwrap();
+                let decoded_len = decryptor.decrypt(recieved_key, &mut decoded).unwrap();
 
                 // Use only the part of the buffer with the decrypted data
                 let decoded = &decoded[..decoded_len];
@@ -97,11 +97,11 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
         }
 
         // all other values are malformed (should not be sent to server), ignore them (verbose for protocol clarity)
-        Message::UcidReject(_) => return,
-        Message::RateReject() => return,
-        Message::Accepted(_) => return,
-        Message::InvalidReq() => return,
-        Message::Malformed() => return,
+        Message::UcidReject(_) => (),
+        Message::RateReject() => (),
+        Message::Accepted(_) => (),
+        Message::InvalidReq() => (),
+        Message::Malformed() => (),
     }
 }
 
@@ -113,10 +113,10 @@ async fn handle_connection(
 ) {
     if !check_rate_limit(&addr, limit_map).await {
         println!("Connection recieved from: {} (Rejected, Rate Limit)", addr);
-        if socket.writable().await.is_ok() {
-            if let Err(_) = socket.try_write(&Message::RateReject().to_req()) {
-                println!("Failed to write client reject response (timeout)");
-            }
+        if socket.writable().await.is_ok()
+            && socket.try_write(&Message::RateReject().to_req()).is_err()
+        {
+            println!("Failed to write client reject response (timeout)");
         }
         return;
     }
@@ -213,7 +213,7 @@ async fn check_rate_limit(addr: &SocketAddr, limit_map: &mut HashMap<u128, u64>)
             }
         }
     }
-    return true;
+    true
 }
 
 /// generates an RSA key and writes it to the database
