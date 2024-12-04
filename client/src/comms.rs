@@ -22,7 +22,7 @@ pub(crate) fn generate_ucid() -> Result<u64, ()> {
     let mut timestamp = (timestamp as u64) << BITS_OF_RANDOM; // position timestamp on first 50 bits of u64
     timestamp += rand::thread_rng().gen_range(0..MAX_RANDOM); // fills in 14 bits of random
 
-    return Ok(timestamp);
+    Ok(timestamp)
 }
 
 #[allow(dead_code)]
@@ -50,6 +50,7 @@ pub(crate) enum Message<'a> {
 
 const NUMBER_OF_SEGMENTS: u64 = 8;
 
+#[allow(clippy::needless_range_loop)]
 impl Message<'_> {
     /// constructs a u64 from an 8 element u8 array (maps first values to most significant bits and last to least significant bits)
     fn u64_from_u8_array(values: &[u8]) -> Result<u64, ()> {
@@ -58,26 +59,26 @@ impl Message<'_> {
         }
         let mut uid: u64 = 0;
         for i in 0..NUMBER_OF_SEGMENTS as usize {
-            uid +=
-                u64::from(values[i]) << NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64);
+            uid += u64::from(values[i])
+                << (NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64));
             // use bitwise shifts to build a u64 value from in order u8 values
         }
-        return Ok(uid);
+        Ok(uid)
     }
 
     /// splits a u64 value into an 8 element u8 vector (8 bits per value, starting from most significant to least significant bits)
-    fn u8_array_from_u64<'a>(values: u64) -> Vec<u8> {
-        let mut uid = [0 as u8; NUMBER_OF_SEGMENTS as usize];
+    fn u8_array_from_u64(values: u64) -> Vec<u8> {
+        let mut uid = [0_u8; NUMBER_OF_SEGMENTS as usize];
         for i in 0..NUMBER_OF_SEGMENTS as usize {
-            uid[i] = (values >> NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64)) as u8;
+            uid[i] = (values >> (NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64))) as u8;
             // use bitwise shifts to seperate a u64 value into u8 values
         }
-        return uid.to_vec();
+        uid.to_vec()
     }
 
     /// deserializes bits into a Message object
     pub fn from_req(network_msg: &mut [u8]) -> Message {
-        if network_msg.len() == 0 {
+        if network_msg.is_empty() {
             return Message::Malformed();
         }
 
@@ -118,39 +119,39 @@ impl Message<'_> {
     }
 
     /// serializes a Message object to transmittable bits
-    pub fn to_req<'a>(&self) -> Vec<u8> {
+    pub fn to_req(&self) -> Vec<u8> {
         let mut req = Vec::new();
         match self {
             Message::RegisterClient((id, secret)) => {
                 // [0, 8 bits][id - 64 bits][secret 0 <= x bits < INF]
-                req.push(0 as u8);
+                req.push(0_u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
                 req.append(&mut secret.to_vec());
-                return req;
+                req
             }
             Message::UcidReject(id) => {
                 // [1, 8 bits][id - 64 bits]
-                req.push(1 as u8);
+                req.push(1_u8);
                 req.append(&mut Self::u8_array_from_u64(*id));
-                return req;
+                req
             }
             Message::RateReject() => {
                 // [2, 8 bits][id - 64 bits]
-                req.push(2 as u8);
-                return req;
+                req.push(2_u8);
+                req
             }
             Message::Accepted(signature) => {
                 // [3, 8 bits][key_encrypted - 0 <= x bits < INF]
-                req.push(3 as u8);
+                req.push(3_u8);
                 req.append(&mut signature.to_vec());
-                return req;
+                req
             }
             Message::InvalidReq() => {
                 // [4, 8 bits]
-                req.push(4 as u8);
-                return req;
+                req.push(4_u8);
+                req
             }
-            Message::Malformed() => return [].to_vec(),
+            Message::Malformed() => [].to_vec(),
         }
     }
 }
@@ -190,8 +191,8 @@ mod tests {
     #[test]
     fn test_networkize_5() {
         assert_eq!(
-            Message::RegisterClient((256, &[133, 007])).to_req(),
-            vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 133, 007]
+            Message::RegisterClient((256, &[133, 7])).to_req(),
+            vec![0, 0, 0, 0, 0, 0, 0, 1, 0, 133, 7]
         );
     }
 }

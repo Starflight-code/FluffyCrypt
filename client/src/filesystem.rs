@@ -25,7 +25,7 @@ pub(crate) fn recurse_directory(path: PathBuf) -> Option<Vec<DirEntry>> {
             files.push(file);
         }
     }
-    return Some(files);
+    Some(files)
 }
 
 /// provides directory scanning using recursion, sends files to `sender` when found
