@@ -58,8 +58,8 @@ impl Message<'_> {
         }
         let mut uid: u64 = 0;
         for i in 0..NUMBER_OF_SEGMENTS as usize {
-            uid +=
-                u64::from(values[i]) << NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64);
+            uid += u64::from(values[i])
+                << (NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64));
             // use bitwise shifts to build a u64 value from in order u8 values
         }
         return Ok(uid);
@@ -69,7 +69,7 @@ impl Message<'_> {
     fn u8_array_from_u64<'a>(values: u64) -> Vec<u8> {
         let mut uid = [0 as u8; NUMBER_OF_SEGMENTS as usize];
         for i in 0..NUMBER_OF_SEGMENTS as usize {
-            uid[i] = (values >> NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64)) as u8;
+            uid[i] = (values >> (NUMBER_OF_SEGMENTS * ((NUMBER_OF_SEGMENTS - 1) - i as u64))) as u8;
             // use bitwise shifts to seperate a u64 value into u8 values
         }
         return uid.to_vec();
