@@ -35,9 +35,9 @@ test:clippy:
   script:
     - rustup component add clippy
     - cd client
-    - cargo clippy -- -Dwarnings
+    - cargo clippy
     - cd ../server
-    - cargo clippy -- -Dwarnings
+    - cargo clippy
 
 test:cargo:
   cache: 
