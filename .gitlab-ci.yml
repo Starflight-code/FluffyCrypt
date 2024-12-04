@@ -35,10 +35,9 @@ test:clippy:
   script:
     - rustup component add clippy
     - cd client
-    - rustc --version && cargo --version  # Print version info for debugging
-    - cargo clippy
+    - cargo clippy -Dwarnings
     - cd ../server
-    - cargo clippy
+    - cargo clippy -Dwarnings
 
 test:cargo:
   cache: 
