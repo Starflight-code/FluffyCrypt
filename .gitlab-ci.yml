@@ -18,8 +18,29 @@ workflow:
 image: "rust:latest"
 
 # Use cargo to test the project
+test:clippy:
+  cache: 
+  - key:
+      files:
+        - client/Cargo.lock
+    paths:
+      - client/target/debug/deps
+      - client/target/debug/build
+  - key:
+      files:
+        - server/Cargo.lock
+    paths:
+      - server/target/debug/deps
+      - server/target/debug/build
+  script:
+    - cd client
+    - rustc --version && cargo --version  # Print version info for debugging
+    - cargo clippy
+    - cd ../server
+    - cargo clippy
+
 test:cargo:
-  cache:
+  cache: 
   - key:
       files:
         - client/Cargo.lock
