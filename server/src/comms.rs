@@ -56,33 +56,27 @@ impl Message<'_> {
                     // allows 1-any byte keys, change once key size has been determined
                     return Message::Malformed();
                 }
-                return Message::RegisterClient((
+                Message::RegisterClient((
                     Self::u64_from_u8_array(&network_msg[1..9]).unwrap(),
                     &network_msg[9..network_msg.len()],
-                ));
+                ))
             }
             1 => {
                 if network_msg.len() < 9 {
                     return Message::Malformed();
                 }
-                return Message::UcidReject(Self::u64_from_u8_array(&network_msg[1..9]).unwrap());
+                Message::UcidReject(Self::u64_from_u8_array(&network_msg[1..9]).unwrap())
             }
-            2 => {
-                return Message::RateReject();
-            }
+            2 => Message::RateReject(),
             3 => {
                 if network_msg.len() <= 1 {
                     // allows 1-any byte keys, change once key size has been determined
                     return Message::Malformed();
                 }
-                return Message::Accepted(&network_msg[1..network_msg.len()]);
+                Message::Accepted(&network_msg[1..network_msg.len()])
             }
-            4 => {
-                return Message::InvalidReq();
-            }
-            _ => {
-                return Message::Malformed();
-            }
+            4 => Message::InvalidReq(),
+            _ => Message::Malformed(),
         }
     }
 
