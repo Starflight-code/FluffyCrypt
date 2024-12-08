@@ -77,7 +77,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                 let decoded = &decoded[..decoded_len];
 
                 let record: NewClientKey = NewClientKey {
-                    asymmetric_key_id: 0,
+                    asymmetric_key_id: 1,
                     ucid: shift_u64_to_i64(id),
                     encryption_key: decoded,
                     paid: false,
