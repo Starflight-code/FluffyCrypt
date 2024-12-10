@@ -27,6 +27,7 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 /// SERVER IP, used for generating obfuscated `ip-port.bin` file
 pub const SERVER_ADDRESS: &str = "127.0.0.1:4200";
+pub const MAX_FAILURES: i32 = 3;
 
 /// establishes connection with the local SQLite database, returns the connection
 pub async fn establish_connection() -> SqliteConnection {
@@ -42,7 +43,7 @@ fn shift_u64_to_i64(number: u64) -> i64 {
 }
 
 /// handles a `msg` recieved, sending responses to the provided `socket`
-async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
+async fn handle_message(msg: Message<'_>, socket: &TcpStream, failures: &mut i32) -> Result<(),()> {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
 
@@ -57,6 +58,7 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                 if socket.writable().await.is_ok() {
                     // key is a duplicate, send rejection
                     let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
+                    *failures += 1;
                 }
             } else {
                 let decryption_key: AsymmetricKey =
@@ -88,20 +90,21 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream) {
                     .execute(&mut db)
                     .unwrap();
                 if socket.writable().await.is_ok() {
-                    // key is a duplicate, send rejection
+                    // succeeded, accept the message
                     let _ = socket.try_write(&Message::Accepted(recieved_key).to_req().to_vec());
                 }
 
                 // this might produce the result we'd expect, I'll need to make sure it's decrypting with the private key
             }
+            Ok(())
         }
 
         // all other values are malformed (should not be sent to server), ignore them (verbose for protocol clarity)
-        Message::UcidReject(_) => (),
-        Message::RateReject() => (),
-        Message::Accepted(_) => (),
-        Message::InvalidReq() => (),
-        Message::Malformed() => (),
+        Message::UcidReject(_) => Err(()),
+        Message::RateReject() => Err(()),
+        Message::Accepted(_) => Err(()),
+        Message::InvalidReq() => Err(()),
+        Message::Malformed() => Err(()),
     }
 }
 
@@ -122,6 +125,9 @@ async fn handle_connection(
     }
 
     println!("Connection recieved from: {}", addr);
+    
+    let mut failures = 0;
+
     loop {
         let read_ready = socket.readable().await;
         if read_ready.is_ok() {
@@ -141,10 +147,11 @@ async fn handle_connection(
 
             // parse network message, send to handler
             let msg = Message::from_req(&mut read_buff);
-            handle_message(msg, &socket).await;
+            if handle_message(msg, &socket, &mut failures).await.is_err() {
+                return;
+            }
         } else {
             sleep(Duration::from_millis(1));
-            continue;
         }
     }
 }
