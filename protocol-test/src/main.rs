@@ -1,14 +1,14 @@
 use std::{thread::sleep, time::Duration};
+use tokio::time::timeout;
 
 use comms::Message;
 use tokio::net::TcpSocket;
 mod comms;
 
 #[allow(dead_code)]
-async fn connect_to_host<'a>(delay: i32, to_tx: Vec<Message<'a>>)
-{
+async fn connect_to_host<'a>(delay: i32, to_tx: Vec<Message<'a>>) {
     sleep(Duration::from_secs(delay.try_into().unwrap()));
-    
+
     // test - connect from another thread
     let addr = "127.0.0.1:4200".parse().unwrap();
 
@@ -22,7 +22,12 @@ async fn connect_to_host<'a>(delay: i32, to_tx: Vec<Message<'a>>)
             sleep(Duration::from_millis(1));
         }
     }
+    while timeout(Duration::new(1, 0), stream.writable())
+        .await
+        .is_ok()
+    {
+        //
+    }
 }
 
-fn main() {
-}
+fn main() {}
