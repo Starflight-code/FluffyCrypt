@@ -38,7 +38,7 @@ pub(crate) fn should_disable_crypto() -> bool {
         let mut input = String::new();
         io::stdin().read_line(&mut input).unwrap();
 
-        if input.to_lowercase() != *"yes" {
+        if input.to_lowercase() != String::from("yes") {
             disable_cryptography = true;
             event!(
                 Level::WARN,
