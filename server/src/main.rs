@@ -46,7 +46,6 @@ fn shift_u64_to_i64(number: u64) -> i64 {
 async fn handle_message(msg: Message<'_>, socket: &TcpStream, failures: &mut i32) -> Result<(),()> {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
-
     let mut db = establish_connection().await;
     match msg {
         Message::RegisterClient((id, recieved_key)) => {
@@ -84,7 +83,11 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream, failures: &mut i32
                     encryption_key: decoded,
                     paid: false,
                 };
-
+                if socket.writable().await.is_ok() {
+                if(decoded.len() < 246 && decoded.len() > 266) {
+                    let _ = socket.try_write(&Message::Malformed().to_req().to_vec());
+                }
+            }
                 insert_into(client_dsl::client_key)
                     .values(record)
                     .execute(&mut db)
