@@ -43,7 +43,11 @@ fn shift_u64_to_i64(number: u64) -> i64 {
 }
 
 /// handles a `msg` recieved, sending responses to the provided `socket`
-async fn handle_message(msg: Message<'_>, socket: &TcpStream, failures: &mut i32) -> Result<(),()> {
+async fn handle_message(
+    msg: Message<'_>,
+    socket: &TcpStream,
+    failures: &mut i32,
+) -> Result<(), ()> {
     use crate::schema::asymmetric_key::dsl as asym_dsl;
     use crate::schema::client_key::dsl as client_dsl;
     let mut db = establish_connection().await;
@@ -84,10 +88,10 @@ async fn handle_message(msg: Message<'_>, socket: &TcpStream, failures: &mut i32
                     paid: false,
                 };
                 if socket.writable().await.is_ok() {
-                if(decoded.len() < 246 && decoded.len() > 266) {
-                    let _ = socket.try_write(&Message::Malformed().to_req().to_vec());
+                    if decoded.len() < 246 && decoded.len() > 266 {
+                        let _ = socket.try_write(&Message::Malformed().to_req().to_vec());
+                    }
                 }
-            }
                 insert_into(client_dsl::client_key)
                     .values(record)
                     .execute(&mut db)
@@ -128,7 +132,7 @@ async fn handle_connection(
     }
 
     println!("Connection recieved from: {}", addr);
-    
+
     let mut failures = 0;
 
     loop {

