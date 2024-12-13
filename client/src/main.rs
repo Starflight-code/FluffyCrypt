@@ -58,7 +58,7 @@ async fn main() {
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
 
-    if cfg!(unix) {
+    if cfg!(target_os = "linux") {
         let _ = Command::new("ulimit").arg("-n 1000000").output(); // set file ulimit to prevent termination from file handler leak
     }
     recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
