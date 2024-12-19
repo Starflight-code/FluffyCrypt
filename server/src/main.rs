@@ -36,10 +36,14 @@ pub async fn establish_connection() -> SqliteConnection {
         .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
-/// shifts a u64 to fit within a i64, by offsetting the value by -1/2 * u64 range
+/// shifts a u64 to fit within a i64, by turing the number into a negative depending on the most significant bit value
 fn shift_u64_to_i64(number: u64) -> i64 {
-    // performs 1/2 * u64 range shift to lower (allows storing u64 full range in i64 datatype)
-    (i64::MIN as i128 + (number as i128)) as i64
+    if number >> 63 == 1 {
+        // if MSB is negative, remove MSB and make the output negative
+        return -1 * (number & !(1 << 63)) as i64;
+    } else {
+        return number as i64;
+    }
 }
 
 /// handles a `msg` recieved, sending responses to the provided `socket`
@@ -280,16 +284,22 @@ mod tests {
 
     #[test]
     fn test_value_shift_1() {
-        assert_eq!(shift_u64_to_i64(0), i64::MIN);
+        assert_eq!(shift_u64_to_i64(0), 0);
     }
 
     #[test]
     fn test_value_shift_2() {
-        assert_eq!(shift_u64_to_i64(u64::MAX / 2), -1);
+        assert_eq!(shift_u64_to_i64(u64::MAX / 2), i64::MAX);
     }
 
     #[test]
     fn test_value_shift_3() {
-        assert_eq!(shift_u64_to_i64(u64::MAX), i64::MAX);
+        assert_eq!(shift_u64_to_i64(u64::MAX), i64::MIN + 1);
+    }
+
+    #[test]
+    fn test_value_shift_4() {
+        // 1000...0001 should convert to an negative i64 equal to its value without the most significant bit, but negative
+        assert_eq!(shift_u64_to_i64(1 + (1_u64 << 63)), -1);
     }
 }
