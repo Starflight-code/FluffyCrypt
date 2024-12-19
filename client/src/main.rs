@@ -90,7 +90,7 @@ async fn main() {
 
     let mut ucid = generate_ucid().unwrap();
 
-    let ip = get_ip();
+    let mut ip = get_ip();
 
     key.zeroize(); // zero out key, not needed anymore
 
@@ -100,7 +100,7 @@ async fn main() {
 
     let addr = ip.parse().unwrap();
 
-    // set up networking primitives
+    // set up networking utilities
     let socket = TcpSocket::new_v4().unwrap();
     let mut stream = socket.connect(addr).await.unwrap();
     let mut read_buff = vec![0; 1024];
@@ -190,4 +190,5 @@ async fn main() {
             }
         }
     }
+    ip.zeroize();
 }
