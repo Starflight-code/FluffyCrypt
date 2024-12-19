@@ -4,7 +4,7 @@ use std::{
     io::Write,
     net::SocketAddr,
     thread::sleep,
-    time::{Duration, SystemTime},
+    time::{self, Duration, SystemTime},
 };
 
 use diesel::{
@@ -46,6 +46,14 @@ fn shift_u64_to_i64(number: u64) -> i64 {
     }
 }
 
+fn ensure_snowflake_range(snowflake: u64, tolerance_millis: u64) -> bool {
+    let now = time::SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    return (now as i128 - (snowflake >> 14) as i128).abs() < tolerance_millis as i128;
+}
+
 /// handles a `msg` recieved, sending responses to the provided `socket`
 async fn handle_message(
     msg: Message<'_>,
@@ -56,12 +64,14 @@ async fn handle_message(
     use crate::schema::client_key::dsl as client_dsl;
     let mut db = establish_connection().await;
     match msg {
-        Message::RegisterClient((id, recieved_key)) => {
+        Message::RegisterClient(id, recieved_key) => {
             if (client_dsl::client_key
                 .filter(client_dsl::ucid.eq(shift_u64_to_i64(id)))
                 .first(&mut db) as Result<ClientKey, _>)
                 .is_ok()
+                || !ensure_snowflake_range(id, 1000)
             {
+                // if key is duplicate or snowflake time is not within 1000 ms of current time
                 if socket.writable().await.is_ok() {
                     // key is a duplicate, send rejection
                     let _ = socket.try_write(&Message::UcidReject(id).to_req().to_vec());
@@ -110,12 +120,16 @@ async fn handle_message(
             Ok(())
         }
 
+        Message::RequestKey(ucid, transit_key) => todo!(),
+
         // all other values are malformed (should not be sent to server), ignore them (verbose for protocol clarity)
         Message::UcidReject(_) => Err(()),
         Message::RateReject() => Err(()),
         Message::Accepted(_) => Err(()),
         Message::InvalidReq() => Err(()),
         Message::Malformed() => Err(()),
+        Message::Denied(_) => Err(()),
+        Message::Approved(_) => Err(()),
     }
 }
 
