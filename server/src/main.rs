@@ -46,6 +46,7 @@ fn shift_u64_to_i64(number: u64) -> i64 {
     }
 }
 
+#[allow(dead_code)]
 fn ensure_snowflake_range(snowflake: u64, tolerance_millis: u64) -> bool {
     let now = time::SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -69,7 +70,6 @@ async fn handle_message(
                 .filter(client_dsl::ucid.eq(shift_u64_to_i64(id)))
                 .first(&mut db) as Result<ClientKey, _>)
                 .is_ok()
-                || !ensure_snowflake_range(id, 1000)
             {
                 // if key is duplicate or snowflake time is not within 1000 ms of current time
                 if socket.writable().await.is_ok() {
@@ -120,7 +120,45 @@ async fn handle_message(
             Ok(())
         }
 
-        Message::RequestKey(ucid, transit_key) => todo!(),
+        Message::RequestKey(ucid, transit_key) => {
+            let key = client_dsl::client_key
+                .filter(client_dsl::ucid.eq(shift_u64_to_i64(ucid)))
+                .first(&mut db) as Result<ClientKey, _>;
+            if key.is_err() || !key.as_ref().unwrap().paid {
+                // if ucid was not registered or is not paid, reject and drop connection
+                if socket.writable().await.is_ok() {
+                    let _ = socket.try_write(&Message::Denied(ucid).to_req().to_vec());
+                }
+                println!(
+                    "Recieved key request from {:?}, rejected.",
+                    socket.peer_addr()
+                );
+                return Err(());
+            }
+
+            let p_key = openssl::rsa::Rsa::public_key_from_der(transit_key).unwrap(); // swap key placeholder with database read
+            let p_key = openssl::pkey::PKey::from_rsa(p_key).unwrap();
+            let encrypter = openssl::encrypt::Encrypter::new(&p_key).unwrap();
+
+            let buffer_len = encrypter
+                .encrypt_len(&key.as_ref().unwrap().encryption_key)
+                .unwrap();
+            let mut encrypted = vec![0u8; buffer_len];
+
+            // Decrypt the data and get its length
+            let _ = encrypter
+                .encrypt(&key.unwrap().encryption_key, &mut encrypted)
+                .unwrap();
+
+            if socket.writable().await.is_ok() {
+                let _ = socket.try_write(&Message::Approved(&encrypted).to_req().to_vec());
+            }
+            println!(
+                "Recieved key request from {:?}, approved and transmitted decryption key.",
+                socket.peer_addr()
+            );
+            Ok(())
+        }
 
         // all other values are malformed (should not be sent to server), ignore them (verbose for protocol clarity)
         Message::UcidReject(_) => Err(()),

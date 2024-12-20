@@ -86,9 +86,7 @@ async fn main() {
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
     let encrypted_key = wrap_key(&key);
-
     let mut ucid = generate_ucid().unwrap();
-
     let mut ip = get_ip();
 
     key.zeroize(); // zero out key, not needed anymore
