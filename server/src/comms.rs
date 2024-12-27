@@ -1,3 +1,5 @@
+use tracing::{event, Level};
+
 #[allow(dead_code)]
 #[derive(Debug)]
 /// contains both client & server messages
@@ -61,12 +63,21 @@ impl Message<'_> {
     /// deserializes bits into a Message object
     pub fn from_req(network_msg: &mut [u8]) -> Message {
         if network_msg.is_empty() {
+            event!(
+                Level::TRACE,
+                "Network message was empty, marking as malformed."
+            );
             return Message::Malformed();
         }
 
         match network_msg[0] {
             0 => {
                 if network_msg.len() <= 9 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (Register Client) was too short ({}), marking as malformed.", 
+                        network_msg.len()
+                    );
                     // allows 1-any byte keys, change once key size has been determined
                     return Message::Malformed();
                 }
@@ -77,6 +88,11 @@ impl Message<'_> {
             }
             1 => {
                 if network_msg.len() < 9 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (UcidReject) was too short ({}), marking as malformed.",
+                        network_msg.len()
+                    );
                     return Message::Malformed();
                 }
                 Message::UcidReject(Self::u64_from_u8_array(&network_msg[1..9]).unwrap())
@@ -84,6 +100,11 @@ impl Message<'_> {
             2 => Message::RateReject(),
             3 => {
                 if network_msg.len() <= 1 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (Accepted) was too short ({}), marking as malformed.",
+                        network_msg.len()
+                    );
                     // allows 1-any byte keys, change once key size has been determined
                     return Message::Malformed();
                 }
@@ -92,6 +113,11 @@ impl Message<'_> {
             4 => Message::InvalidReq(),
             5 => {
                 if network_msg.len() <= 9 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (RequestKey) was too short ({}), marking as malformed.",
+                        network_msg.len()
+                    );
                     return Message::Malformed();
                 }
                 Message::RequestKey(
@@ -100,13 +126,23 @@ impl Message<'_> {
                 )
             }
             6 => {
-                if network_msg.len() <= 9 {
+                if network_msg.len() < 9 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (Denied) was too short ({}), marking as malformed.",
+                        network_msg.len()
+                    );
                     return Message::Malformed();
                 }
                 Message::Denied(Self::u64_from_u8_array(&network_msg[1..9]).unwrap())
             }
             7 => {
                 if network_msg.len() <= 1 {
+                    event!(
+                        Level::TRACE,
+                        "Network message (Approved) was too short ({}), marking as malformed.",
+                        network_msg.len()
+                    );
                     return Message::Malformed();
                 }
                 Message::Approved(&network_msg[1..network_msg.len()])
