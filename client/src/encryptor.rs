@@ -60,7 +60,7 @@ pub(crate) async fn encrypt_files(r: Receiver<DirEntry>, mut key: Vec<u8>, mode_
                 content.zeroize();
             } else {
                 let iv: &Vec<u8> = &content[..32].to_vec();
-                match decrypt(Cipher::aes_256_ofb(), &key, Some(&iv), &content[32..]) {
+                match decrypt(Cipher::aes_256_ofb(), &key, Some(iv), &content[32..]) {
                     Ok(mut output) => {
                         let _ = write(file.path(), &output);
                         output.zeroize();
