@@ -40,9 +40,9 @@ pub async fn establish_connection() -> SqliteConnection {
 fn shift_u64_to_i64(number: u64) -> i64 {
     if number >> 63 == 1 {
         // if MSB is negative, remove MSB and make the output negative
-        return -1 * (number & !(1 << 63)) as i64;
+        -((number & !(1 << 63)) as i64)
     } else {
-        return number as i64;
+        number as i64
     }
 }
 
@@ -52,7 +52,7 @@ fn ensure_snowflake_range(snowflake: u64, tolerance_millis: u64) -> bool {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
         .as_millis();
-    return (now as i128 - (snowflake >> 14) as i128).abs() < tolerance_millis as i128;
+    (now as i128 - (snowflake >> 14) as i128).abs() < tolerance_millis as i128
 }
 
 /// handles a `msg` recieved, sending responses to the provided `socket`
@@ -101,10 +101,8 @@ async fn handle_message(
                     encryption_key: decoded,
                     paid: false,
                 };
-                if socket.writable().await.is_ok() {
-                    if decoded.len() < 246 && decoded.len() > 266 {
-                        let _ = socket.try_write(&Message::Malformed().to_req().to_vec());
-                    }
+                if socket.writable().await.is_ok() && decoded.len() < 246 && decoded.len() > 266 {
+                    let _ = socket.try_write(&Message::Malformed().to_req().to_vec());
                 }
                 insert_into(client_dsl::client_key)
                     .values(record)
