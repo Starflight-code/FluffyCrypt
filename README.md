@@ -1,6 +1,7 @@
 # FluffyCrypt
-
-<img src="https://github.com/user-attachments/assets/d0f5ea9e-9940-4ba6-a716-1a12a9a79111" width=40% height=40%>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/d0f5ea9e-9940-4ba6-a716-1a12a9a79111" width=40% height=40%>
+</p>
 
 FluffyCrypt should be used for educational purposes only. Safeguards have been put in place to prevent unauthorized use of this program, please DO NOT remove these safeguards.
 
@@ -13,7 +14,7 @@ To run the client program with encryption enabled, you must enable set FLUFFYCRY
 Start by cloning this repo and enter the repo's folder. Then run the server and client.
 1. cd server
 2. cargo run -r
-3. <Open a new terminal>
+3. -- Open a new terminal --
 4. cd client
 5. export FLUFFYCRYPT_DEV=TRUE
 6. cargo run -r
