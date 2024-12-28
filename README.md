@@ -1,4 +1,5 @@
 # FluffyCrypt
+[![Rust](https://github.com/Starflight-code/FluffyCrypt/actions/workflows/rust.yml/badge.svg)](https://github.com/Starflight-code/FluffyCrypt/actions/workflows/rust.yml)
 <p align="center">
   <img src="https://github.com/user-attachments/assets/d0f5ea9e-9940-4ba6-a716-1a12a9a79111" width=40% height=40%>
 </p>
