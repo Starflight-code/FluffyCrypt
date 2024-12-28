@@ -1,6 +1,6 @@
 # FluffyCrypt
 
-![fluffy_spiky_cat - improved](https://github.com/user-attachments/assets/d0f5ea9e-9940-4ba6-a716-1a12a9a79111)
+<img src="https://github.com/user-attachments/assets/d0f5ea9e-9940-4ba6-a716-1a12a9a79111" width=40% height=40%>
 
 FluffyCrypt should be used for educational purposes only. Safeguards have been put in place to prevent unauthorized use of this program, please DO NOT remove these safeguards.
 
