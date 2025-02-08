@@ -10,6 +10,10 @@ FluffyCrypt is Ransomware created as part of a Computer Science class. This prog
 
 To run the client program with encryption enabled, you must enable set FLUFFYCRYPT_ALLOW_TARGET=TRUE. Note: if this program is executed on a computer without a server running (or the targeted server is inaccessable), the files will be irrecoverable. Set the FLUFFYCRYPT_DEV=TRUE environment variable to enable the system with a tracing log level, you can unset the FLUFFYCRYPT_ALLOW_TARGET=TRUE to run the program with cryptography disabled.
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/4de96513-bbaf-410c-80cd-38d1d921a272">
+</p>
+
 ## How do I get started?
 
 Start by cloning this repo and enter the repo's folder. Then run the server and client.
