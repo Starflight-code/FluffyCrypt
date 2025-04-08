@@ -17,7 +17,7 @@ openssl = {version = "0.10.70", features = ["vendored"] }
 rand = "0.8.5"
 # this supplies async and thread support, as well as (async variants) of our networking stuff. Read more here: https://tokio.rs/tokio/tutorial
 # and here: https://tokio.rs/tokio/tutorial/io
-tokio = {version = "1.41.1", features = ["net", "macros", "rt-multi-thread"] }
+tokio = {version = "1.43.1", features = ["net", "macros", "rt-multi-thread"] }
 tracing = "0.1.40" # tracing/logging facilities, supporting multiple output handlers for async-safe logging. Read more here: https://docs.rs/tracing/latest/tracing/
 tracing-subscriber = "0.3.19"
 # adds memory zeroing primitizes, using "Rust intrinsics to prevent optimization" (optimization is a common pitfall of memory zeroing)
